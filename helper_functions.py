@@ -1,4 +1,4 @@
-from numpy import cumsum, convolve, ones, exp
+from numpy import cumsum, convolve, ones, exp, diff
 from time import time
 
 
@@ -12,16 +12,24 @@ def fast_moving_average(arr, n=10):
     return convolve(arr, ones(n), 'valid') / n
 
 
+def integrate(arr, dX, n=10):
+    return moving_average(arr, n=n)
+
+def differentiate(arr, dX):
+    return diff(arr) / dX
+
+
 def tic():
     global current_time
     current_time = time()
 
 
-def toc(returns=False):
-    if returns:
+def toc(return_numeric=False):
+    if return_numeric:
         return time() - current_time
     else:
         print('{:.2f}s'.format(time() - current_time))
+
 
 
 def logistic(x, a=1, s=0, k=1):
@@ -31,5 +39,10 @@ def logistic(x, a=1, s=0, k=1):
 def fft():
     pass
 
+
 def ifft():
+    pass
+
+
+def regression():
     pass
