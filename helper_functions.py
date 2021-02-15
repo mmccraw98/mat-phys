@@ -1,6 +1,7 @@
 from numpy import cumsum, convolve, ones, exp, diff
 from time import time
-
+import os
+import psutil
 
 def moving_average(arr, n=10):
     ret = cumsum(arr, dtype=float)
@@ -31,6 +32,12 @@ def toc(return_numeric=False):
         print('{:.2f}s'.format(time() - current_time))
 
 
+def get_mem_use(return_numeric=False):
+    if return_numeric:
+        return psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2
+    else:
+        print('{} mb used'.format(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2))
+
 
 def logistic(x, a=1, s=0, k=1):
     return a / (1 + exp(-k * (x - s)))
@@ -45,4 +52,5 @@ def ifft():
 
 
 def regression():
+    pass
     pass

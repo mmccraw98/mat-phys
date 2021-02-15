@@ -123,15 +123,19 @@ class Rosenbrock(ObjectiveFunction):
 
 class SSESingleMaxwell(ObjectiveFunction):
     def function(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
         return sum((force_predicted - force_data)**2)
 
     def gradient(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
         stiffness_derivs = array([convolve(ones(t.shape), h**(3/2), 'full')[: t.size] * (t[1] - t[0]),
@@ -140,8 +144,8 @@ class SSESingleMaxwell(ObjectiveFunction):
         return sum(2 * (force_predicted - force_data) * (16 * sqrt(R) / 3 * stiffness_derivs), axis=1)
 
     def hessian(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1 = X
+        force_data, t, h, R, norm_weights = self.params
+        Ee, E1, T1 = X * norm_weights
         Rh = 16 * sqrt(R) / 3
         h32 = h**(3/2)
         A = Rh * convolve(ones(t.shape), h32, 'full')[: t.size] * (t[1] - t[0])
@@ -163,8 +167,10 @@ class SSESingleMaxwell(ObjectiveFunction):
 
 class SSEDoubleMaxwell(ObjectiveFunction):
     def function(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1, E2, T2 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1, E2, T2 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
         return sum((force_predicted - force_data)**2)
@@ -178,8 +184,10 @@ class SSEDoubleMaxwell(ObjectiveFunction):
 
 class SSETripleMaxwell(ObjectiveFunction):
     def function(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1, E2, T2, E3, T3 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1, E2, T2, E3, T3 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
         return sum((force_predicted - force_data)**2)
@@ -193,8 +201,10 @@ class SSETripleMaxwell(ObjectiveFunction):
 
 class SSEQuadMaxwell(ObjectiveFunction):
     def function(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1, E2, T2, E3, T3, E4, T4 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1, E2, T2, E3, T3, E4, T4 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3) + E4 * np.exp(-t / T4)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
         return sum((force_predicted - force_data)**2)
@@ -208,8 +218,10 @@ class SSEQuadMaxwell(ObjectiveFunction):
 
 class SSEQuintMaxwell(ObjectiveFunction):
     def function(self, X):
-        force_data, t, h, R = self.params
-        Ee, E1, T1, E2, T2, E3, T3, E4, T4, E5, T5 = X
+        force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
+        Ee, E1, T1, E2, T2, E3, T3, E4, T4, E5, T5 = X * norm_weights
         model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3)\
                           + E4 * np.exp(-t / T4) + E5 * np.exp(-t / T5)
         force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
