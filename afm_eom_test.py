@@ -1,16 +1,20 @@
 import numpy as np
 import helper_functions as hf
 from viscoelastic_models import maxwell_coeffs
+import matplotlib.pyplot as plt
+
+
+hf.tic()
 
 # time settings
-dt = 2e-10  # s SETTING
+dt = 2e-10  # s SETTING berkin suggests mHz
 tF = 0.2  # s SETTING
 tI = 0  # s
 
 # array settings based on memory
-max_array_length = 100000  # SETTING
+max_array_length = 10000000  # SETTING
 length_full = int(tF / dt)
-chunk_length = int(length_full / max_array_length)
+num_chunks = int(length_full / max_array_length)
 
 # experiment settings
 sampling_freq = 1 / 50e4  # SETTING
@@ -18,20 +22,20 @@ sampling_freq = 1 / 50e4  # SETTING
 approach_vel = 2000  # nm / s SETTING
 z_step = approach_vel * dt
 
-F_threshold = 5  # nN SETTING
+F_threshold = 50  # nN SETTING
 
 # cantilever settings
 k = 2  # nN / nm SETTING
-Q = 2  # SETTING
+Q = 2  # SETTING berkin says 100-300
 f = 75e3  # Hz SETTING
-R = 1e3  # nm SETTING
+R = 1e3  # nm SETTING for larger R, use a smaller Q (closer to 100) berkin uses tips around 10-100 nm
 alpha = 16 * np.sqrt(R) / 3
 
 m = k / (2 * np.pi * f)**2
 b = 2 * np.pi * f * m / Q
 
 # defining chunked arrays
-time = np.arange(tI, chunk_length * dt, dt)
+time = np.arange(tI, max_array_length * dt, dt)
 
 zb = np.zeros(time.shape)
 
@@ -43,60 +47,57 @@ f_ts = np.zeros(time.shape)
 ht = np.zeros(time.shape)
 
 # defining initial conditions of the cantilever
-zt[0] = 1e3  # nm SETTING
+zt[0] = 5  # nm SETTING
 zb[0] = zt[0]
 
 # creating the material matrices and coefficients
 surface_height = 0
 model_params = {'Ee': 1, 'arms': [{'E': 1, 'T': 1e-5}, {'E': 1, 'T': 1e-4}, {'E': 1, 'T': 1e-3}]}
 
-print(maxwell_coeffs(model_params))
+un, qn = maxwell_coeffs(model_params)
 
-quit()
-u_arr, q_arr = maxwell_coeffs(model_params)
-
-q_matrix = np.zeros((q_arr.size, time.size))
-u_matrix = np.zeros((u_arr.size, time.size))
+q_matrix = np.zeros((2, qn.size))
+u_matrix = np.zeros((2, un.size))
 
 i = 0
-while i < time.size - 1:
+while i < time.size - 1: #@ TODO: make a 'toy' simulation AFM library???? same backend just smaller numbers -> smaller timestep
     # calculate surface penetration depth
-    ht[i] = (surface_height - zt[i]) * (zt[i] <= surface_height)
+    ht[i] = (surface_height - zt[i]) * (zt[i] <= surface_height)  # ensured to always be positive, no abs necessary
 
     # calculate the material matrices
-    u_matrix[:, -1]
-    f_ts[i] = 0
+    q_matrix[1, 0] = ht[i]**(3 / 2)  # lowest order strain derivative
+    q_matrix[1, 1:] = [(q_matrix[1, j] - q_matrix[0, j]) / dt
+                       for j in range(1, q_matrix.shape[1])]  # higher order strain derivatives
+
+    u_matrix[1, -1] = (alpha * sum(qn * q_matrix[1]) - sum(un[: -1] * u_matrix[0, :-1])) / un[-1]  # highest order stress derivative
+    u_matrix[1, :-1] = [u_matrix[0, -j - 1] + u_matrix[1, -j] * dt
+                        for j in range(1, u_matrix.shape[1])]  # lower order stress derivatives
+
+    f_ts[i] = u_matrix[1, 0]  # update interaction force with viscoelastic stress
+
+    q_matrix[0] = q_matrix[1]  # save the current q state as the previous q state
+    u_matrix[0] = u_matrix[1]  # save the current u state as the previous u state
 
     # move the cantilever base
     zb[i + 1] = zb[i] - (1 + 2 * (at[0] * m <= F_threshold)) * z_step
 
     # integrate eom of cantilever tip according to velocity verlet
     zt[i + 1] = zt[i] + vt[i] * dt + 1 / 2 * at[i] * dt ** 2
-    at[i + 1] = (-k * zt[i] - b * vt[i] + k * zb[i + 1] + f_ts[i]) / m
+    at[i + 1] = (-k * zt[i] - b * vt[i] + k * zb[i] + f_ts[i] ) / m
     vt[i + 1] = vt[i] + 1 / 2 * (at[i] + at[i + 1]) * dt
 
-    # iterate
+    # iterate and check exit conditions
+    if zb[i] > zb[0]:
+        break
     i += 1
 
-hf.get_mem_use()
-import matplotlib.pyplot as plt
-plt.plot(time, zb)
-plt.plot(time, zt)
+plt.plot(time, zb, label='base pos')
+plt.plot(time, zt, label='tip pos')
+plt.plot(time, zt - zb, label='force')
+plt.legend()
+plt.grid()
+plt.xlabel('time (s)')
 plt.show()
 
-# num_terms = (model_params['Ee'] is not None) + len(model_params['arms'])
-# stiffnessArmsStrings = ['Ee', [ 'E{}'.format(i) for i in range(len(model_params['arms']))]]
-#
-# # making the polynomial terms for u(s)
-# if num_terms >= 1:
-#     # make the s0 term
-#     s0_u = 1
-#     tempStringu = '('
-#     for i in range(num_terms):
-#         if i == 1 and model_params['Ee'] is not None:
-#             continue
-#         if i == num_terms:
-#             tempStringu = 0
-
-
-
+hf.get_mem_use()
+hf.toc()
