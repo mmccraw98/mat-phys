@@ -17,7 +17,7 @@ import time
 
 lib_path = r'C:\Users\Enrique\Documents\Github-repositories\TappingMode_Simulations\Epoxy'
 os.chdir(lib_path)
-from AFM_lib import dynamic_spectroscopy_mdr
+from EAL_AFM_lib import dynamic_spectroscopy_mdr
 
 
 ##############Viscoelastic material parameters#######################
