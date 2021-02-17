@@ -12,7 +12,7 @@ def maxwell_coeffs(model_dict):
     Q_n = Q.normal()  # groups the relaxance equation into a single term and simplifies
     u_n = collect(expand(denom(Q_n)), s)  # simplifies the denominator and collects the coefficients of the polynomials
     q_n = collect(expand(numer(Q_n)), s)
-
+    # returns in order n: 0, 1, 2, 3, ... N
     return array([u_n.coeff(s, i) for i in range(E_arms.size + 1)]).astype(float), \
            array([q_n.coeff(s, i) for i in range(E_arms.size + 1)]).astype(float)
 

@@ -1,6 +1,6 @@
 from numpy.random import rand, randint
 from numpy import inf, sin, cos, pi, arange, sum, tile, max, min, zeros, ones, array, where, abs, sqrt, arctan, tan, cumsum, real, imag
-from helper_functions import fast_moving_average, tic, toc, logistic
+from helperfunctions import fast_moving_average, tic, toc, logistic
 
 class Sample:
 

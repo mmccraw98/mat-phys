@@ -2,7 +2,7 @@ import numpy as np
 from optimization import SSESingleMaxwell, SSEDoubleMaxwell, SSETripleMaxwell, SSEQuadMaxwell, SSEQuintMaxwell, fit_maxwell
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
-from helper_functions import tic, toc
+from helperfunctions import tic, toc
 import pandas as pd
 
 

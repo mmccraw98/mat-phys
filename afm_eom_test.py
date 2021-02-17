@@ -1,8 +1,7 @@
 import numpy as np
-import helper_functions as hf
+import helperfunctions as hf
 from viscoelastic_models import maxwell_coeffs
 import matplotlib.pyplot as plt
-
 
 hf.tic()
 
