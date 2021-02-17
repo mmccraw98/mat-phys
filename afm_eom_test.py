@@ -59,7 +59,7 @@ q_matrix = np.zeros((2, qn.size))
 u_matrix = np.zeros((2, un.size))
 
 i = 0
-while i < time.size - 1: #@ TODO: make a 'toy' simulation AFM library???? same backend just smaller numbers -> smaller timestep
+while (i := i + 1) < time.size - 1: #@ TODO: make a 'toy' simulation AFM library???? same backend just smaller numbers -> smaller timestep
                     #@ TODO: make a simulation class that has an assumptions method which prints the assumptions of the simulation
     # calculate surface penetration depth
     ht[i] = (surface_height - zt[i]) * (zt[i] <= surface_height)  # ensured to always be positive, no abs necessary
@@ -88,7 +88,6 @@ while i < time.size - 1: #@ TODO: make a 'toy' simulation AFM library???? same b
     # iterate and check exit conditions
     if zb[i] > zb[0]:
         break
-    i += 1
 
 plt.plot(time, zb, label='base pos')
 plt.plot(time, zt, label='tip pos')
@@ -98,7 +97,7 @@ plt.grid()
 plt.xlabel('time (s)')
 plt.show()
 
-hf.get_mem_use()
+hf.getmemuse()
 hf.toc()
 
 print(zt - zb)
