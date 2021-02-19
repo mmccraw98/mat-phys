@@ -17,4 +17,17 @@ def maxwell_coeffs(model_dict):
            array([q_n.coeff(s, i) for i in range(E_arms.size + 1)]).astype(float)
 
 
+def maxwell_tip_sample_force_lee_and_radok(dt, h_i, un, qn, u_matrix, q_matrix, alpha):
+    # calculate the material response
+    q_matrix[1, 0] = h_i**(3 / 2)  # lowest order strain derivative
+    for j in range(qn.size - 1):  # higher order strain derivatives
+        q_matrix[1, j + 1] = (q_matrix[1, j] - q_matrix[0, j]) / dt
+    u_matrix[1, -1] = (alpha * sum(qn * q_matrix[1]) - sum(un[: -1] * u_matrix[0, :-1])) / un[-1]  # highest order stress derivative
+    for j in range(2, un.size + 1): # lower order stress derivatives
+        u_matrix[1, -j] = u_matrix[0, -j] + u_matrix[1, -j + 1] * dt
+
+    q_matrix[0] = q_matrix[1]  # save the current q state as the previous q state
+    u_matrix[0] = u_matrix[1]  # save the current u state as the previous u state
+
+    return u_matrix[1, 0], u_matrix, q_matrix  # force, updated u_matrix, updated q_matrix
 
