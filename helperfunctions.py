@@ -1,4 +1,4 @@
-from numpy import cumsum, convolve, ones, exp, diff
+from numpy import cumsum, convolve, ones, exp, diff, linspace
 from time import time
 import psutil
 import pickle
@@ -56,7 +56,6 @@ def ifft():
 
 
 def regression():
-    pass
     pass
 
 
@@ -123,4 +122,16 @@ def selectyesno(prompt):
         print('input not understood: {} '.format(choice))
     # if the understood input is a no, it returns false, if it is a yes, it returns true
     return choice in yes_choices
+
+
+def altspace(start, step, count, **kwargs):
+    '''
+    creates an evenly spaced numpy array starting at start, with a specified step size, and a given number of steps
+    :param start: float starting position of array
+    :param step: float step size between consecutive elements in the array
+    :param count: int total number of elements in the array
+    :param kwargs: any extra arguments that may be passed in the numpy array creation
+    :return:
+    '''
+    return linspace(start, start + (step * count), count, endpoint=False, **kwargs)
 

@@ -25,14 +25,14 @@ f_ts = np.zeros(time.shape)
 
 ht = np.zeros(time.shape)
 
-# experiment settings - sampling
+# experiment settings - sampling of data
 sampling_freq = 50e3  # SETTING
-num_samples = int(time[-1] * sampling_freq)
-sample_indicies = np.linspace(0, time.size - 1, num_samples).astype(int)
+get_every = int(1 / (sampling_freq * dt))
 
 # experimental datastreams
 exp_tip_pos = np.zeros(int(tF * sampling_freq))
 exp_base_pos = np.zeros(int(tF * sampling_freq))
+exp_deflection = np.zeros(int(tF * sampling_freq))
 exp_time = np.zeros(int(tF * sampling_freq))
 
 approach_vel = 2000  # nm / s SETTING
@@ -58,12 +58,6 @@ zb[0] = zt[0]
 # creating the material matrices and coefficients
 surface_height = 0.0
 model_params = {'Ee': 1e4*1e-9, 'arms': [{'E': 1e6*1e-9, 'T': 1e-5}]}  # elastic moduli in nn / nm^2 (divide by 1e9)
-#model_stiffness = model_params['Ee'] * np.pi * R**2
-
-un, qn = maxwell_coeffs(model_params)
-
-q_matrix = np.zeros((2, qn.size))
-u_matrix = np.zeros((2, un.size))
 
 hf.tic()
 for iteration in range(num_chunks):
@@ -77,34 +71,36 @@ for iteration in range(num_chunks):
             z_step *= -1
         if zb[i] > zb[0]:
             break
-        zb[i + 1] = zb[i] - z_step  # (-1 + 2 * (any(f_ts >= F_threshold)))
+        zb[i] = zb[i - 1] - z_step  # (-1 + 2 * (any(f_ts >= F_threshold)))
+
+        # calculate surface penetration depth
+        ht[i] = (surface_height - zt[i]) * (zt[i] <= surface_height)  # ensured to always be positive, no abs necessary
+
+        # calculate tip-sample force and update the material matrices
+        #
 
         # integrate eom of cantilever tip according to velocity verlet
         zt[i + 1] = zt[i] + vt[i] * dt + 1 / 2 * at[i] * dt ** 2
         at[i + 1] = (-k * zt[i] - b * vt[i] + k * zb[i] + f_ts[i]) / m
         vt[i + 1] = vt[i] + 1 / 2 * (at[i] + at[i + 1]) * dt
 
-        # calculate surface penetration depth
-        ht[i] = (surface_height - zt[i]) * (zt[i] <= surface_height)  # ensured to always be positive, no abs necessary
 
-        # calculate tip-sample force and update the material matrices
-        f_ts[i + 1], u_matrix, q_matrix = maxwell_tip_sample_force_lee_and_radok(dt, ht[i], un, qn, u_matrix, q_matrix, alpha)
 
     # downsample and log experimental datastreams
-    print(int(time[0] * sampling_freq), int(time[-1] * sampling_freq))
-    print(exp_tip_pos[int(time[0] * sampling_freq) + (iteration > 1): int(time[-1] * sampling_freq)])
-    exp_tip_pos[int(time[0] * sampling_freq) + (iteration > 1): int(time[-1] * sampling_freq)] = zt[sample_indicies]
-    exp_base_pos[int(time[0] * sampling_freq) + (iteration > 1): int(time[-1] * sampling_freq)] = zb[sample_indicies]
-    exp_time[int(time[0] * sampling_freq) + (iteration > 1): int(time[-1] * sampling_freq)] = time[sample_indicies]
+    bound_lower, bound_upper = round(time[0] * sampling_freq), round(time[-1] * sampling_freq) + 1
+    exp_tip_pos[bound_lower: bound_upper] = zt[::get_every]
+    exp_base_pos[bound_lower: bound_upper] = zb[::get_every]
+    exp_deflection[bound_lower: bound_upper] = (zt - zb)[::get_every]
+    exp_time[bound_lower: bound_upper] = time[::get_every]
 
-    # reset values for next bulk iteration
-    time = np.arange(time[-1], time[-1] + max_array_length * dt, dt)
-    zb[0] = zb[1]
-    zt[0] = zt[1]
-    vt[0] = vt[1]
-    at[0] = at[1]
-    f_ts[0] = f_ts[1]
-    ht[0] = ht[1]
+    # reset values for next bulk iteration, counts as an iteration step
+    time = hf.altspace(time[-1], dt, time.size) + dt
+    zb[0] = zb[-1] - z_step
+    zt[0] = zt[-1] + vt[-1] * dt + 1 / 2 * at[-1] * dt ** 2
+    at[0] = (-k * zt[-1] - b * vt[-1] + k * zb[-1] + f_ts[-1]) / m
+    vt[0] = vt[-1] + 1 / 2 * (at[-1] + at[0]) * dt
+    ht[0] = (surface_height - zt[0]) * (zt[0] <= surface_height)
+    f_ts[0], u_matrix, q_matrix = maxwell_tip_sample_force_lee_and_radok(dt, ht[0], un, qn, u_matrix, q_matrix, alpha)
 
     # log the run-time
     hf.toc()
