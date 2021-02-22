@@ -1,5 +1,5 @@
 from sympy import symbols, denom, expand, collect, numer
-from numpy import array, zeros, sqrt
+from numpy import array, zeros, sqrt, ones
 
 
 def maxwell_coeffs(model_dict):
@@ -43,3 +43,55 @@ def maxwell_tip_sample_force_lee_and_radok(dt, h_i, un, qn, u_matrix, q_matrix, 
 
     return u_matrix[1, 0], u_matrix, q_matrix  # force, updated u_matrix, updated q_matrix
 
+
+def f_ts_jeff_williams_gen_maxwell_model(i, zt, x, xd, vd, force, G, eta, R, dt, A=0, a0=2e-10):
+    '''
+    calculates the tip sample force for the generalized, n arm, maxwell model according to the formulation presented
+    by jeff williams in his thesis for a single arm (SLS) maxwell
+    :param i: int instance in time
+    :param zt: (length time) numpy array tip position
+    :param x: (length time) numpy array position of the sample surface
+    :param xd: (n, length time) numpy array position of the dampers in the surface
+    :param vd: (n, length time) numpy array velocities of the dampers in the surface
+    :param force: (length time) numpy array force between the tip and the sample
+    :param G: (n + 1) numpy array elastic moduli of the springs in the model (G[0] is the elastic term)
+    :param eta: (n) numpy array viscosities of the dampers in the model
+    :param R: float radius of tip
+    :param dt: float timestep of simulation
+    :param A: float hamaker constant for the tip-sample adhesion interaction (default as 0 to have no adhesion)
+    :param a0: float interatomic spacing (default as 2 angstroms)
+    :return: updated material values and tip-sample force at time i+1: force, x, xd, vd
+    '''
+    # contact
+    if zt[i] < x[i] + a0:
+        # prescribe the compression of the surface due to the tip position
+        x[i + 1] = zt[i + 1] - a0
+        # calculate the forces in the arms due to their springs
+        f_arms = - G[1:] * (x[i + 1] - xd[:, i])
+        # calculate the velocities of the dampers due to the forces in the springs
+        vd[:, i + 1] = - f_arms / eta
+        # calculate the positions of the dampers from the velocity update
+        xd[:, i + 1] = xd[:, i] + vd[:, i + 1] * dt
+        # ensure that the dampers do not exceed the position of the springs
+        #xd[:, i + 1] = xd[:, i + 1] * (xd[:, i + 1] <= x[i + 1]) + x[i + 1] * (xd[:, i + 1] > x[i + 1])
+        # calculate sum of forces: elastic spring force, arm forces, vdw force
+        force[i + 1] = - G[0] * x[i + 1] + sum(f_arms) - A * R / (6 * a0 ** 2)
+    # non-contact
+    else:
+        # the model is either compressed or not.  if it is not compressed, nothing happens
+        # if it is compressed, the force stored in the elastic spring will just dissipate
+        # and cause the rest of the model to return to normal position -> elastic spring force is
+        # the input, sample position is the output
+        f_vdw = - A * R / (6 * (zt[i] - x[i]) ** 2)
+        # calculate the force acting on the elastic arm (spring force and vdw)
+        f_e = - G[0] * x[i] - f_vdw
+        # the elastic spring then pulls on the arms (force in the arms is the opposite of the elastic arm force)
+        # calculate the velocity in the dampers from the force in the arms
+        vd[:, i + 1] = f_e / eta
+        # calculate the position of the dampers from their velocities and previous positions
+        xd[:, i + 1] = xd[:, i] + vd[:, i + 1]
+        # calculate the new position of the sample, derivation in jupyter notebook
+        x[i + 1] = 1 / sum(G) * sum(G[1:] * (xd[:, i] + vd[:, i + 1] * dt))
+        # the sample and tip are pulled towards each other from adhesion
+        force[i + 1] = f_vdw
+    return force, x, xd, vd
