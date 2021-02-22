@@ -75,23 +75,25 @@ def f_ts_jeff_williams_gen_maxwell_model(i, zt, x, xd, vd, force, G, eta, R, dt,
         # ensure that the dampers do not exceed the position of the springs
         #xd[:, i + 1] = xd[:, i + 1] * (xd[:, i + 1] <= x[i + 1]) + x[i + 1] * (xd[:, i + 1] > x[i + 1])
         # calculate sum of forces: elastic spring force, arm forces, vdw force
-        force[i + 1] = - G[0] * x[i + 1] + sum(f_arms) - A * R / (6 * a0 ** 2)
+        force[i + 1] = - G[0] * x[i + 1] + sum(f_arms)# - A * R / (6 * a0 ** 2)
     # non-contact
     else:
         # the model is either compressed or not.  if it is not compressed, nothing happens
         # if it is compressed, the force stored in the elastic spring will just dissipate
         # and cause the rest of the model to return to normal position -> elastic spring force is
         # the input, sample position is the output
-        f_vdw = - A * R / (6 * (zt[i] - x[i]) ** 2)
+        #f_vdw = - A * R / (6 * (zt[i] - x[i]) ** 2)
+        #if f_vdw < - A * R / (6 * a0 ** 2):
+        #    f_vdw = - A * R / (6 * a0 ** 2)
         # calculate the force acting on the elastic arm (spring force and vdw)
-        f_e = - G[0] * x[i] - f_vdw
+        f_e = - G[0] * x[i]# - f_vdw
         # the elastic spring then pulls on the arms (force in the arms is the opposite of the elastic arm force)
         # calculate the velocity in the dampers from the force in the arms
         vd[:, i + 1] = f_e / eta
         # calculate the position of the dampers from their velocities and previous positions
-        xd[:, i + 1] = xd[:, i] + vd[:, i + 1]
+        xd[:, i + 1] = xd[:, i] + vd[:, i + 1] * dt
         # calculate the new position of the sample, derivation in jupyter notebook
         x[i + 1] = 1 / sum(G) * sum(G[1:] * (xd[:, i] + vd[:, i + 1] * dt))
         # the sample and tip are pulled towards each other from adhesion
-        force[i + 1] = f_vdw
+        force[i + 1] = 0#f_vdw
     return force, x, xd, vd
