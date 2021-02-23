@@ -162,6 +162,8 @@ class SSESingleMaxwell(ObjectiveFunction):
 
     def hessian(self, X):
         force_data, t, h, R, norm_weights = self.params
+        if norm_weights is None:
+            norm_weights = 1
         Ee, E1, T1 = X * norm_weights
         Rh = 16 * sqrt(R) / 3
         h32 = h**(3/2)
