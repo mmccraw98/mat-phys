@@ -104,6 +104,23 @@ class ObjectiveFunction:
         print('Undefined!')
 
 
+class harmonic_bond(ObjectiveFunction):
+    def potential(self, r1, r2):
+        kb, r0 = self.params
+        r = sqrt(sum((r1 - r2)**2))
+        return 1 / 2 * kb * (r - r0) ** 2
+
+    def gradient_wrt_r1(self, r1, r2):
+        kb, r0 = self.params
+        r = sqrt(sum((r1 - r2)**2))
+        return - kb * (r - r0) * (r2 - r1) / r
+
+    def gradient_wrt_r2(self, r1, r2):
+        kb, r0 = self.params
+        r = sqrt(sum((r1 - r2)**2))
+        return kb * (r - r0) * (r2 - r1) / r
+
+
 class Rosenbrock(ObjectiveFunction):
     def function(self, X):
         a, b = self.params
