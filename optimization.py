@@ -126,7 +126,7 @@ class cosine_angle_ijk(ObjectiveFunction):
         rkj = rk - rj
         mag_rij = sqrt(sum(rij**2))
         mag_rkj = sqrt(sum(rkj**2))
-        return arccos(dot(rij, rkj) / (mag_rij * mag_rkj))
+        return np.arccos(dot(rij, rkj) / (mag_rij * mag_rkj))
 
     def potential(self, ri, rj, rk):
         kt, t0 = self.params
