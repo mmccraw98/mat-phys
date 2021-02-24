@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi
+from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos
 from scipy.optimize import minimize
 
 
@@ -126,7 +126,7 @@ class cosine_angle_ijk(ObjectiveFunction):
         rkj = rk - rj
         mag_rij = sqrt(sum(rij**2))
         mag_rkj = sqrt(sum(rkj**2))
-        return dot(rij, rkj) / (mag_rij * mag_rkj)
+        return arccos(dot(rij, rkj) / (mag_rij * mag_rkj))
 
     def potential(self, ri, rj, rk):
         kt, t0 = self.params
