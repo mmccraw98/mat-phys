@@ -1,9 +1,16 @@
-from numpy import cumsum, convolve, ones, exp, diff, linspace
+from numpy import cumsum, convolve, ones, exp, diff, linspace, pi
 from time import time
 import psutil
 import pickle
 import os
 import re
+
+
+def deg_to_rad(angle):
+    return angle * pi / 180
+
+def rad_to_deg(angle):
+    return angle * 180 / pi
 
 
 def movingaverage(arr, n=10):

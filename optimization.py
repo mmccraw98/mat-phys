@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import array, sum, sqrt, convolve, exp, ones, zeros
+from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi
 from scipy.optimize import minimize
 
 
@@ -104,22 +104,76 @@ class ObjectiveFunction:
         print('Undefined!')
 
 
-class harmonic_bond(ObjectiveFunction):
-    def potential(self, r1, r2):
+class harmonic_bond_ij(ObjectiveFunction):
+    def potential(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((r1 - r2)**2))
+        r = sqrt(sum((ri - rj) ** 2))
         return 1 / 2 * kb * (r - r0) ** 2
 
-    def gradient_wrt_r1(self, r1, r2):
+    def gradient_wrt_ri(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((r1 - r2)**2))
-        return - kb * (r - r0) * (r2 - r1) / r
+        r = sqrt(sum((ri - rj) ** 2))
+        return - kb * (r - r0) * (rj - ri) / r
 
-    def gradient_wrt_r2(self, r1, r2):
+    def gradient_wrt_rj(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((r1 - r2)**2))
-        return kb * (r - r0) * (r2 - r1) / r
+        r = sqrt(sum((ri - rj) ** 2))
+        return kb * (r - r0) * (rj - ri) / r
 
+class cosine_angle_ijk(ObjectiveFunction):
+    def angle_ijk(self, ri, rj, rk):
+        rij = ri - rj
+        rkj = rk - rj
+        mag_rij = sqrt(sum(rij**2))
+        mag_rkj = sqrt(sum(rkj**2))
+        return dot(rij, rkj) / (mag_rij * mag_rkj)
+
+    def potential(self, ri, rj, rk):
+        kt, t0 = self.params
+        rij = ri - rj
+        rkj = rk - rj
+        mag_rij = sqrt(sum(rij**2))
+        mag_rkj = sqrt(sum(rkj**2))
+        return 1 / 2 * kt * (dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0))**2
+
+    def gradient_wrt_ri(self, ri, rj, rk):
+        kt, t0 = self.params
+        rij = ri - rj
+        rkj = rk - rj
+        mag_rij = sqrt(sum(rij**2))
+        mag_rkj = sqrt(sum(rkj**2))
+        unit_rij = rij / mag_rij
+        unit_rkj = rkj / mag_rkj
+        return kt * (dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)) * (unit_rkj - dot(unit_rij, unit_rkj) * unit_rij) / mag_rij
+
+    def gradient_wrt_rj(self, ri, rj, rk):
+        return self.gradient_wrt_ri(ri, rj, rk) + self.gradient_wrt_rk(ri, rj, rk)
+
+    def gradient_wrt_rk(self, ri, rj, rk):
+        kt, t0 = self.params
+        rij = ri - rj
+        rkj = rk - rj
+        mag_rij = sqrt(sum(rij ** 2))
+        mag_rkj = sqrt(sum(rkj ** 2))
+        unit_rij = rij / mag_rij
+        unit_rkj = rkj / mag_rkj
+        return kt * (dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)) * (unit_rij - dot(unit_rij, unit_rkj) * unit_rkj) / mag_rkj
+
+class non_bonded_ij(ObjectiveFunction):
+    def potential(self, ri, rj):
+        e0, q1, q2 = self.params
+        r = sqrt(sum((ri - rj) ** 2))
+        return q1 * q2 / (4 * pi * e0 * r)
+
+    def gradient_wrt_ri(self, ri, rj):
+        e0, q1, q2 = self.params
+        r = sqrt(sum((ri - rj) ** 2))
+        return - q1 * q2 / (4 * pi * e0) * (ri - rj) / r ** 3
+
+    def gradient_wrt_rj(self, ri, rj):
+        e0, q1, q2 = self.params
+        r = sqrt(sum((ri - rj) ** 2))
+        return q1 * q2 / (4 * pi * e0) * (ri - rj) / r ** 3
 
 class Rosenbrock(ObjectiveFunction):
     def function(self, X):
