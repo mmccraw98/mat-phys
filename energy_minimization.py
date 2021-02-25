@@ -5,7 +5,16 @@ import os
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-def plot_hooh_xyz(molecule, plot_title, show=True):
+
+def plot_hooh_xyz(molecule, plot_title=None, show=True):
+    '''
+    plot the coordinates of a hooh (hydrogen peroxide) molecule in a 3d plot showing the molecule in color
+    red atoms = oxygen, grey atoms = hydrogen, red lines = bonds
+    :param molecule: listlike of positional coordinates of the atoms in the molecule
+    :param plot_title: optional string argument of the title of the plot
+    :param show: optional boolean argument to show the plot or wait for other plots to be added
+    :return: plots the molecule
+    '''
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     for i, atom in enumerate(molecule):
@@ -23,11 +32,19 @@ def plot_hooh_xyz(molecule, plot_title, show=True):
     ax.set_xlabel('X Position (A)')
     ax.set_ylabel('Y Position (A)')
     ax.set_zlabel('Z Position (A)')
-    plt.title(plot_title)
-    if show:
+    if plot_title is not None:  # if a title is given, add it
+        plt.title(plot_title)
+    if show:  # if the plot needs to be shown immediately, show it
         plt.show()
 
+
 def create_xyz_str(molecule, atom_types):
+    '''
+    give coordinates of atoms in a molecule and their names, will format to a string in the form of an xyz file
+    :param molecule: listlike containing positional coordinates of each atom in the molecule
+    :param atom_types: listlike containing string atom types (i.e. atom names)
+    :return: string xyz formatted atom type atom coordinates (line by line)
+    '''
     xyz_str = ''
     for i, atom_and_type in enumerate(zip(molecule, atom_types)):
         atom, type = atom_and_type
@@ -37,107 +54,77 @@ def create_xyz_str(molecule, atom_types):
         xyz_str += atom_str + (i < len(molecule) - 1) * '\n'
     return xyz_str
 
-tic()
 
-with open(os.path.join('data', 'zyx.txt'), 'r') as f:
+path = os.path.join('data', 'xyz.txt')
+iterlim = 10000
+tol = 1e-3
+rate = 1e-3
+
+# load the file, read it as a string, and close it to save memory
+with open(path, 'r') as f:
     xyz_str = f.read()
 
-print(xyz_str)
+# print initial state
+print('Initial Configuration:\n', xyz_str)
+
 p1 = np.array([float(val) for val in xyz_str.split(sep='\n')[0].split(sep='\t')[1:]])
 p2 = np.array([float(val) for val in xyz_str.split(sep='\n')[1].split(sep='\t')[1:]])
 p3 = np.array([float(val) for val in xyz_str.split(sep='\n')[2].split(sep='\t')[1:]])
 p4 = np.array([float(val) for val in xyz_str.split(sep='\n')[3].split(sep='\t')[1:]])
 
-# plot initial geometry
+# plot initial state
+plot_hooh_xyz([p1, p2, p3, p4], 'Initial Configuration', True)
 
-# store three values
-stored_states = []
+# define potential terms
 # values taken from https://www.researchgate.net/publication/327471625_Simulation_of_the_ion-induced_shock_waves_effects_on_the_transport_of_chemically_reactive_species_in_ion_tracks
-# page 3 ^ - bond energy in kcal/mol, length in angstroms, angle in degrees
-HO = harmonic_bond_ij(450, 0.9572)  # 2 of these
-OO = harmonic_bond_ij(540, 1.453)  # 1 of these
-HOO = cosine_angle_ijk(140, deg_to_rad(102.7))  # 2 of these
-HOO = cosine_angle_ijk(140, deg_to_rad(90))  # 2 of these
+oo = harmonic_bond_ij(540, 1.453)  # oxygen-oxygen harmonic bond (only 1 of these)
+ho = harmonic_bond_ij(450, 0.9572)  # hydrogen-oxygen harmonic bond (2 of these)
+hoo = cosine_angle_ijk(140, deg_to_rad(102.7))  # hydrogen-oxygen-oxygen angle bending (2 of these)
+hh = non_bonded_ij()  # lennard-jones and coulombic potential between non-bonded hydrogens (only 1 of these)
 
-HH = non_bonded_ij(1, 50, 50)  # 1 of these
+# define minimization terms
+i = 0  # iteration step
+potential_current = np.inf  # arbitrarily high initial potential value, it can only go downhill from here
+potential_historic, state_historic = [], []  # will track the potential and store a few intermediate states
+while (i := i + 1) < iterlim and potential_current > tol:
+    # calculate the gradients for each atom
+    p1_grad = ho.gradient_wrt_ri(p1, p2) + hoo.gradient_wrt_ri(p1, p2, p3) # + hh.gradient_wrt_ri(p1, p4)
+    p2_grad = ho.gradient_wrt_rj(p1, p2) + oo.gradient_wrt_ri(p2, p3) + hoo.gradient_wrt_rj(p1, p2,p3) + hoo.gradient_wrt_ri(p2, p3, p4)
+    p3_grad = oo.gradient_wrt_rj(p2, p3) + ho.gradient_wrt_ri(p3, p4) + hoo.gradient_wrt_rj(p2, p3,p4) + hoo.gradient_wrt_rk(p1, p2, p3)
+    p4_grad = ho.gradient_wrt_rj(p3, p4) + hoo.gradient_wrt_rk(p2, p3, p4)  # + hh.gradient_wrt_rj(p1, p4)
 
-print(rad_to_deg(HOO.angle_ijk(p1, p2, p3)))
-print(rad_to_deg(HOO.angle_ijk(p2, p3, p4)))
+    # update the positions of each atom according to their scaled gradients
+    p1 -= rate * p1_grad
+    p2 -= rate * p2_grad
+    p3 -= rate * p3_grad
+    p4 -= rate * p4_grad
 
-p1[1] = 1
-p2 = np.array([0.0, 0, 0])
-p3 = np.array([1.0, 0, 0])
-theta_range = np.arange(0, 4 * np.pi + 0.01, 0.01)
-p1_x = np.cos(theta_range)
-p1_y = np.sin(theta_range)
-angle = []
-potential = []
-deriv1 = []
-deriv2 = []
-deriv3 = []
-for x, y in zip(p1_x, p1_y):
-    p1[0] = x
-    p1[1] = y
-    angle.append(rad_to_deg(HOO.angle_ijk(p1, p2, p3)))
-    potential.append(HOO.potential(p1, p2, p3))
-    deriv1.append(HOO.gradient_wrt_ri(p1, p2, p3))
-    deriv2.append(HOO.gradient_wrt_rj(p1, p2, p3))
-    deriv3.append(HOO.gradient_wrt_rk(p1, p2, p3))
-dv1 = np.array(deriv1)
-dv2 = np.array(deriv2)
-dv3 = np.array(deriv3)
+    # update the potential with the new points
+    potential_current = ho.potential(p1, p2) + oo.potential(p2, p3) + ho.potential(p3, p4) + hoo.potential(p1, p2, p3) + hoo.potential(p2, p3, p4)# + hh.potential(p1, p4)
 
-#plt.plot(theta_range, potential)
-plt.plot(theta_range, dv1[:,0]+dv2[:,0]+dv3[:,0], label='d1')
-#plt.plot(angle, deriv2, label='d2')
-#plt.plot(theta_range, dv3[:,2], label='d3')
-plt.legend()
+    # log the potential as the minimization progresses (done in a way to reduce memory cost)
+    if len(potential_historic) < 100 or i % 100 == 0:
+        potential_historic.append(potential_current)
+
+    # log the state during the period in which it changes the most
+    if potential_current < 0.8 * sum(potential_historic) / len(potential_historic) and len(state_historic) < 5:
+        state_historic.append([p1, p2, p3, p4])
+
+# report the results
+print('Minimized to potential ({}) in {} steps\nFinal Configuration:\n'.format(potential_current, i))
+final_xyz_str = create_xyz_str([p1, p2, p3, p4], ['H', 'O', 'O', 'H'])
+print(final_xyz_str)
+
+# plot the potential throughout the minimization process
+plt.plot(potential_historic)
+plt.grid()
+plt.xlabel('Minimization Step')
+plt.ylabel('Potential')
 plt.show()
 
+# plot the intermediate states
+for j, state in enumerate(state_historic):
+    plot_hooh_xyz(state, 'Intermediate Configuration {} / {}'.format(j, len(state_historic)), True)
 
-# f_tol = 1e-3
-# g_tol = 1e-10
-# iter_limit = 50000
-# learning_rate = 1e-3
-# potential = np.inf
-# grad_prev = np.inf
-# i = 0
-# pot = []
-# while abs(potential) > f_tol and (i := i + 1) < iter_limit:
-#     # keeping p1 fixed and adjusting the rest
-#     #p1_grad = HO.gradient_wrt_ri(p1, p2) + HH.gradient_wrt_ri(p1, p2)
-#     p2_grad = HO.gradient_wrt_rj(p1, p2) + OO.gradient_wrt_ri(p2, p3) + HOO.gradient_wrt_rj(p1, p2, p3) + HOO.gradient_wrt_ri(p2, p3, p4)
-#     p3_grad = OO.gradient_wrt_rj(p2, p3) + HO.gradient_wrt_ri(p3, p4) + HOO.gradient_wrt_rj(p2, p3, p4) + HOO.gradient_wrt_rk(p1, p2, p3)
-#     p4_grad = HO.gradient_wrt_rj(p3, p4) + HOO.gradient_wrt_rk(p2, p3, p4)# + HH.gradient_wrt_rj(p1, p4)
-#
-#     #p1 -= learning_rate * p1_grad
-#     p2 -= learning_rate * p2_grad
-#     p3 -= learning_rate * p3_grad
-#     p4 -= learning_rate * p4_grad
-#
-#     if i % int(25000 / 3) == 0:
-#         stored_states.append([p1, p2, p3, p4])
-#     potential = HO.potential(p1, p2) + OO.potential(p2, p3) + HO.potential(p3, p4) \
-#                 + HOO.potential(p1, p2, p3) + HOO.potential(p2, p3, p4)# + HH.potential(p1, p4)
-#     pot.append(potential)
-#
-# print(p2_grad, p3_grad, p4_grad)
-# print('done after {} iterations'.format(i))
-# print('bond lengths', np.sqrt(np.sum((p1-p2)**2)), np.sqrt(np.sum((p2-p3)**2)), np.sqrt(np.sum((p3-p4)**2)))
-# print('distance between hydrogens', np.sqrt(np.sum((p1-p4)**2)))
-# print('final potential', potential)
-# print('angle 123', rad_to_deg(HOO.angle_ijk(p1, p2, p3)))
-# print('angle 234', rad_to_deg(HOO.angle_ijk(p2, p3, p4)))
-#
-# # plot final geometry and three intermediate geometries (stored_states)
-# #molecule = stored_states[-1]
-#
-# print(create_xyz_str([p1, p2, p3, p4], ['H', 'O', 'O', 'H']))
-#
-# # plot_hooh_xyz(initial_state, 'initial')
-# # for i, molecule in enumerate(stored_states):
-# #     plot_hooh_xyz(molecule, 'intermediate state {}'.format(i))
-# plot_hooh_xyz([p1, p2, p3, p4], 'final', True)
-# plt.plot(pot[::100])
-# plt.show()
-# toc()
+# plot the final state
+plot_hooh_xyz([p1, p2, p3, p4], 'Final Configuration', True)

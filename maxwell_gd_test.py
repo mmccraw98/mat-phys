@@ -6,7 +6,7 @@ from helperfunctions import tic, toc
 import pandas as pd
 
 
-def maxwell_force(model_dict, t, h, R):
+def lee_and_radok_action_integral(model_dict, t, h, R):
     model_stiffness = model_dict['Ee'] + np.sum([arm['E'] * np.exp(-t / arm['T']) for arm in model_dict['arms']], axis=0)
     return np.sqrt(R) * 16 / 3 * np.convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
 
@@ -34,7 +34,7 @@ for iterations in range(30):  # test
     for arms in range(1, 6):  # loop over 1 to 5 arms
         sim_x = sim_params[:1 + 2 * arms]
         sim_x_dict = {'Ee': sim_x[0], 'arms': [{'E': E, 'T': T} for E, T in zip(sim_x[1:][0::2], sim_x[1:][1::2])]}
-        sim_force = maxwell_force(sim_x_dict, t, h, R)
+        sim_force = lee_and_radok_action_integral(sim_x_dict, t, h, R)
 
         single = SSESingleMaxwell(sim_force, t, h, R)
         double = SSEDoubleMaxwell(sim_force, t, h, R)
@@ -99,7 +99,7 @@ for param_set in range(500):
     print('Percent Complete: {:.1f}%'.format(100 * param_set / 500))
     sim_x = np.array([np.random.uniform(1e3, 1e9), np.random.uniform(1e3, 1e9), np.random.uniform(1/20000, 1)])
     sim_params = {'Ee': sim_x[0], 'arms': [{'E': sim_x[1], 'T': sim_x[2]}]}
-    sim_model = maxwell_force(sim_params, t, h, R)
+    sim_model = lee_and_radok_action_integral(sim_params, t, h, R)
     objective = SSESingleMaxwell(sim_model, t, h, R)
     for guess in range(4):
         x_init = [np.random.uniform(1e3, 1e9), np.random.uniform(1e3, 1e9), np.random.uniform(1/20000, 1)]
