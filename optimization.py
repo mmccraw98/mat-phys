@@ -95,30 +95,80 @@ class ObjectiveFunction:
         self.params = args
 
     def function(self, X):
-        print('Undefined!')
+        raise NotImplementedError
 
     def gradient(self, X):
-        print('Undefined!')
+        raise NotImplementedError
 
     def hessian(self, X):
-        print('Undefined!')
+        raise NotImplementedError
 
 
 class harmonic_bond_ij(ObjectiveFunction):
     def potential(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return 1 / 2 * kb * (r - r0) ** 2
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        return 1 / 2 * kb * (mag_rij - r0) ** 2
 
     def gradient_wrt_ri(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return - kb * (r - r0) * (rj - ri) / r
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        return - kb * (mag_rij - r0) * (rj - ri) / mag_rij
 
     def gradient_wrt_rj(self, ri, rj):
         kb, r0 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return kb * (r - r0) * (rj - ri) / r
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        return kb * (mag_rij - r0) * (rj - ri) / mag_rij
+
+    def force_ri(self, ri, rj):
+        return - self.gradient_wrt_ri(ri, rj)
+
+    def force_rj(self, ri, rj):
+        return - self.gradient_wrt_rj(ri, rj)
+
+
+class coulomb_ij(ObjectiveFunction):
+    def potential(self, ri, rj):
+        e0, qi, qj = self.params
+        return qi * qj / (4 * pi * e0 * (ri - rj))
+
+    def gradient_wrt_ri(self, ri, rj):
+        e0, qi, qj = self.params
+        return - qi * qj / (4 * pi * e0 * (ri - rj) ** 2)
+
+    def gradient_wrt_rj(self, ri, rj):
+        e0, qi, qj = self.params
+        return qi * qj / (4 * pi * e0 * (ri - rj) ** 2)
+
+    def force_ri(self, ri, rj):
+        return - self.gradient_wrt_ri(ri, rj)
+
+    def force_rj(self, ri, rj):
+        return - self.gradient_wrt_rj(ri, rj)
+
+
+class lennard_jones_ij(ObjectiveFunction):
+    def potential(self, ri, rj):
+        e, s = self.params
+        rij = sqrt(sum(ri - rj)**2)
+        return 4 * e * ((s / rij) ** 12 - (s / rij) ** 6)
+
+    def gradient_wrt_ri(self, ri, rj):
+        e, s = self.params
+        rij = sqrt(sum(ri - rj)**2)
+        return - 4 * e * (12 * s ** 12 / rij ** 13 + 6 * s ** 6 / rij ** 7)
+
+    def gradient_wrt_rj(self, ri, rj):
+        e, s = self.params
+        rij = sqrt(sum(ri - rj)**2)
+        return 4 * e * (12 * s ** 12 / rij ** 13 + 6 * s ** 6 / rij ** 7)
+
+    def force_ri(self, ri, rj):
+        return - self.gradient_wrt_ri(ri, rj)
+
+    def force_rj(self, ri, rj):
+        return - self.gradient_wrt_rj(ri, rj)
+
 
 class cosine_angle_ijk(ObjectiveFunction):
     def angle_ijk(self, ri, rj, rk):
@@ -144,10 +194,11 @@ class cosine_angle_ijk(ObjectiveFunction):
         mag_rkj = sqrt(sum(rkj**2))
         unit_rij = rij / mag_rij
         unit_rkj = rkj / mag_rkj
-        return kt * (dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)) * (unit_rkj - dot(unit_rij, unit_rkj) * unit_rij) / mag_rij
+        angle_component = dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)
+        return kt * angle_component * (unit_rkj - dot(unit_rij, unit_rkj) * unit_rij) / mag_rij
 
     def gradient_wrt_rj(self, ri, rj, rk):
-        return self.gradient_wrt_ri(ri, rj, rk) + self.gradient_wrt_rk(ri, rj, rk)
+        return - self.gradient_wrt_ri(ri, rj, rk) - self.gradient_wrt_rk(ri, rj, rk)
 
     def gradient_wrt_rk(self, ri, rj, rk):
         kt, t0 = self.params
@@ -157,23 +208,38 @@ class cosine_angle_ijk(ObjectiveFunction):
         mag_rkj = sqrt(sum(rkj ** 2))
         unit_rij = rij / mag_rij
         unit_rkj = rkj / mag_rkj
-        return kt * (dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)) * (unit_rij - dot(unit_rij, unit_rkj) * unit_rkj) / mag_rkj
+        angle_component = dot(rij, rkj) / (mag_rij * mag_rkj) - cos(t0)
+        return kt * angle_component * (unit_rij - dot(unit_rij, unit_rkj) * unit_rkj) / mag_rkj
+
+    def force_ri(self, ri, rj, rk):
+        return - self.gradient_wrt_ri(ri, rj, rk)
+
+    def force_rj(self, ri, rj, rk):
+        return - self.gradient_wrt_rj(ri, rj, rk)
+
+    def force_rk(self, ri, rj, rk):
+        return - self.gradient_wrt_rk(ri, rj, rk)
+
 
 class non_bonded_ij(ObjectiveFunction):
     def potential(self, ri, rj):
-        e0, q1, q2 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return q1 * q2 / (4 * pi * e0 * r)
+        e, s, e0, qi, qj = self.params
+        return lennard_jones_ij(e, s).potential(ri, rj) + coulomb_ij(e0, qi, qj).potential(ri, rj)
 
     def gradient_wrt_ri(self, ri, rj):
-        e0, q1, q2 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return - q1 * q2 / (4 * pi * e0) * (ri - rj) / r ** 3
+        e, s, e0, qi, qj = self.params
+        return lennard_jones_ij(e, s).gradient_wrt_ri(ri, rj) + coulomb_ij(e0, qi, qj).gradient_wrt_ri(ri, rj)
 
     def gradient_wrt_rj(self, ri, rj):
-        e0, q1, q2 = self.params
-        r = sqrt(sum((ri - rj) ** 2))
-        return q1 * q2 / (4 * pi * e0) * (ri - rj) / r ** 3
+        e, s, e0, qi, qj = self.params
+        return lennard_jones_ij(e, s).gradient_wrt_rj(ri, rj) + coulomb_ij(e0, qi, qj).gradient_wrt_rj(ri, rj)
+
+    def force_ri(self, ri, rj):
+        return - self.gradient_wrt_ri(ri, rj)
+
+    def force_rj(self, ri, rj):
+        return - self.gradient_wrt_rj(ri, rj)
+
 
 class Rosenbrock(ObjectiveFunction):
     def function(self, X):
@@ -309,6 +375,8 @@ class SSEQuintMaxwell(ObjectiveFunction):
 
 def fit_maxwell(objective, initial_guess):
     result = minimize(objective.function, initial_guess, method='nelder-mead', options={'maxiter': 10000,
-                                                                                        'fatol': 10e-60})
+                                                                                        'fatol': 10e-60,
+                                                                                        'xatol': 10e-20})
     fit_params = result.x
     return fit_params, result.fun, result.nit
+

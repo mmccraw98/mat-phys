@@ -1,5 +1,5 @@
 from sympy import symbols, denom, expand, collect, numer
-from numpy import array, zeros, sqrt, ones
+from numpy import array, zeros, sqrt, ones, convolve, exp, sum
 
 
 def maxwell_coeffs(model_dict):
@@ -17,8 +17,13 @@ def maxwell_coeffs(model_dict):
            array([q_n.coeff(s, i) for i in range(E_arms.size + 1)]).astype(float)
 
 
+def maxwell_tip_sample_force_lee_and_radok_action_integral_formulation(model_dict, t, h, R):
+    model_stiffness = model_dict['Ee'] + sum([arm['E'] * exp(-t / arm['T']) for arm in model_dict['arms']], axis=0)
+    return sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
+
+
 # f_ts[i], u_matrix, q_matrix = maxwell_tip_sample_force_lee_and_radok(dt, ht[i], un, qn, u_matrix, q_matrix, R)
-def maxwell_tip_sample_force_lee_and_radok(dt, h_i, un, qn, u_matrix, q_matrix, R):
+def maxwell_tip_sample_force_lee_and_radok_differential_formulation(dt, h_i, un, qn, u_matrix, q_matrix, R):
     '''
     calculates the tip sample force between an AFM tip of a known radius and a viscoelastic, n arm, maxwell model
     :param dt: float simulation timestep
@@ -42,6 +47,52 @@ def maxwell_tip_sample_force_lee_and_radok(dt, h_i, un, qn, u_matrix, q_matrix, 
     u_matrix[0] = u_matrix[1]  # save the current u state as the previous u state
 
     return u_matrix[1, 0], u_matrix, q_matrix  # force, updated u_matrix, updated q_matrix
+
+
+def f_ts_jeff_williams_gen_maxwell_model_updated(i, zt, zs, zc, vc, f_ts, f_adh, ke, k1, c1, R, dt, A=0, a0=2e-20):
+    '''
+    follows same thing from below
+    :param i:
+    :param zt:
+    :param zs:
+    :param zc:
+    :param vc:
+    :param f_ts:
+    :param f_adh:
+    :param ke:
+    :param k1:
+    :param c1:
+    :param R:
+    :param dt:
+    :param A:
+    :param a0:
+    :return:
+    '''
+    if zt[i] > zs[i - 1] + a0:
+        vc[i - 1] = (ke * (zs[0] - zs[i - 1]) - f_adh[i - 1]) / c1
+        zc[i] = zc[i - 1] + vc[i - 1] * dt
+        zs_tentative = (ke * zs[0] + k1 * (vc[i - 1] * dt + zc[i - 1]) + f_adh[i - 1]) / (ke + k1)
+
+        # case 3: the surface (zs_tentative) jumps above the tip (zt) @ the given instance i
+        if zs_tentative > zt[i] - a0:
+            zs[i] = zt[i] - a0
+            # f_adh[i] = - A / a0**2
+
+            f_ts[i] = ke * (zs[0] - zs[i]) + k1 * (zc[i] - zs[i]) + f_adh[i]
+
+        # continue case 1: no contact between tip and sample
+        else:
+            zs[i] = zs_tentative
+            # f_adh[i] = - A / (zt[i] - zs[i])**2
+            f_ts[i] = f_adh[i]
+
+        # case 2: the tip pushes the sample down
+    else:
+        zs[i] = zt[i] - a0
+        vc[i - 1] = - k1 * (zc[i - 1] - zs[i - 1]) / c1
+        zc[i] = zc[i - 1] + vc[i - 1] * dt
+        # f_adh[i] = - A / a0**2
+        f_ts[i] = ke * (zs[0] - zs[i]) + k1 * (zc[i] - zs[i]) + f_adh[i]
 
 
 def f_ts_jeff_williams_gen_maxwell_model(i, zt, x, xd, vd, force, G, eta, R, dt, A=0, a0=2e-10):
