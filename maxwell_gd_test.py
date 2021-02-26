@@ -1,5 +1,5 @@
 import numpy as np
-from optimization import SSESingleMaxwell, SSEDoubleMaxwell, SSETripleMaxwell, SSEQuadMaxwell, SSEQuintMaxwell, fit_maxwell
+from optimization import SSESingleMaxwell, SSEDoubleMaxwell, SSETripleMaxwell, SSEQuadMaxwell, SSEQuintMaxwell, fit_maxwell_nelder_mead
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from helperfunctions import tic, toc
@@ -50,11 +50,11 @@ for iterations in range(30):  # test
                             np.random.uniform(1e3, 1e9), np.random.randint(1, 20000) / np.random.randint(20000, 1000000),
                             np.random.uniform(1e3, 1e9), np.random.randint(1, 20000) / np.random.randint(20000, 1000000)]
 
-            single_xi, single_scorei, single_niti = fit_maxwell(single, guess_params[:1 + 2 * 1])
-            double_xi, double_scorei, double_niti = fit_maxwell(double, guess_params[:1 + 2 * 2])
-            triple_xi, triple_scorei, triple_niti = fit_maxwell(triple, guess_params[:1 + 2 * 3])
-            quad_xi, quad_scorei, quad_niti = fit_maxwell(quad, guess_params[:1 + 2 * 4])
-            quint_xi, quint_scorei, quint_niti = fit_maxwell(quint, guess_params[:1 + 2 * 5])
+            single_xi, single_scorei, single_niti = fit_maxwell_nelder_mead(single, guess_params[:1 + 2 * 1])
+            double_xi, double_scorei, double_niti = fit_maxwell_nelder_mead(double, guess_params[:1 + 2 * 2])
+            triple_xi, triple_scorei, triple_niti = fit_maxwell_nelder_mead(triple, guess_params[:1 + 2 * 3])
+            quad_xi, quad_scorei, quad_niti = fit_maxwell_nelder_mead(quad, guess_params[:1 + 2 * 4])
+            quint_xi, quint_scorei, quint_niti = fit_maxwell_nelder_mead(quint, guess_params[:1 + 2 * 5])
 
             true_x.append(sim_x)
             single_x.append(single_xi), single_cost.append(single_scorei), single_nit.append(single_niti)

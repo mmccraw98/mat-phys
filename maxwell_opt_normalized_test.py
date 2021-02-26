@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from optimization import SSESingleMaxwell, SSEDoubleMaxwell, SSETripleMaxwell, SSEQuadMaxwell, SSEQuintMaxwell, fit_maxwell
+from optimization import SSESingleMaxwell, SSEDoubleMaxwell, SSETripleMaxwell, SSEQuadMaxwell, SSEQuintMaxwell, fit_maxwell_nelder_mead
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from helperfunctions import tic, toc
