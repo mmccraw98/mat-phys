@@ -25,6 +25,3 @@ single_maxwell_objective = op.SSESingleMaxwell(force, time, h, R, 1)
 #print(op.fit_maxwell_nelder_mead(double_maxwell_objective, np.array([1e4, 1e5, 1e-3, 1e5, 1e-3])))
 guess = np.array([1e3, 1e8, 5e-2])
 
-res = cNM.constrNM(double_maxwell_objective.function, guess, [1e1, 1e1, 2e-5, 1e1, 2e-5], [1e9, 1e9, 1e-1, 1e9, 1e-1],
-                   xtol=1e-40, ftol=1e-40, maxiter=50000, full_output=True)
-cNM.printDict(res)

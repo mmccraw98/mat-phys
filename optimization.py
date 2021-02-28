@@ -1,6 +1,7 @@
 import numpy as np
-from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos
+from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron
 from scipy.optimize import minimize
+from scipy.integrate import cumtrapz
 
 
 class GDALRM:
@@ -130,15 +131,21 @@ class harmonic_bond_ij(ObjectiveFunction):
 class coulomb_ij(ObjectiveFunction):
     def potential(self, ri, rj):
         e0, qi, qj = self.params
-        return qi * qj / (4 * pi * e0 * (ri - rj))
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        # 322.0637 converts Eq to kcal / mol corresponding with DREIDING
+        return 322.0637 * qi * qj / (e0 * mag_rij)
 
     def gradient_wrt_ri(self, ri, rj):
         e0, qi, qj = self.params
-        return - qi * qj / (4 * pi * e0 * (ri - rj) ** 2)
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        # 322.0637 converts Eq to kcal / mol corresponding with DREIDING
+        return - 322.0637 * qi * qj / (e0 * mag_rij ** 3) * (ri - rj)
 
     def gradient_wrt_rj(self, ri, rj):
         e0, qi, qj = self.params
-        return qi * qj / (4 * pi * e0 * (ri - rj) ** 2)
+        mag_rij = sqrt(sum((ri - rj) ** 2))
+        # 322.0637 converts Eq to kcal / mol corresponding with DREIDING
+        return 322.0637 * qi * qj / (e0 * mag_rij ** 3) * (ri - rj)
 
     def force_ri(self, ri, rj):
         return - self.gradient_wrt_ri(ri, rj)
@@ -150,18 +157,18 @@ class coulomb_ij(ObjectiveFunction):
 class lennard_jones_ij(ObjectiveFunction):
     def potential(self, ri, rj):
         e, s = self.params
-        rij = sqrt(sum(ri - rj)**2)
-        return 4 * e * ((s / rij) ** 12 - (s / rij) ** 6)
+        mag_rij = sqrt(sum(ri - rj) ** 2)
+        return 4 * e * ((s / mag_rij) ** 12 - (s / mag_rij) ** 6)
 
     def gradient_wrt_ri(self, ri, rj):
         e, s = self.params
-        rij = sqrt(sum(ri - rj)**2)
-        return - 4 * e * (12 * s ** 12 / rij ** 13 + 6 * s ** 6 / rij ** 7)
+        mag_rij = sqrt(sum(ri - rj) ** 2)
+        return - 24 * e * (2 * (s / mag_rij) ** 12 - (s / mag_rij) ** 6) * (ri - rj) / mag_rij ** 2
 
     def gradient_wrt_rj(self, ri, rj):
         e, s = self.params
-        rij = sqrt(sum(ri - rj)**2)
-        return 4 * e * (12 * s ** 12 / rij ** 13 + 6 * s ** 6 / rij ** 7)
+        mag_rij = sqrt(sum(ri - rj) ** 2)
+        return 24 * e * (2 * (s / mag_rij) ** 12 - (s / mag_rij) ** 6) * (ri - rj) / mag_rij ** 2
 
     def force_ri(self, ri, rj):
         return - self.gradient_wrt_ri(ri, rj)
@@ -258,29 +265,38 @@ class Rosenbrock(ObjectiveFunction):
         return array([[2 - 4 * b * (y - 3 * x**2), -4 * b * x], [-4 * b * x, 2 * b]])
 
 
-class SSESingleMaxwell(ObjectiveFunction):
-    def function(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        return sum((force_predicted - force_data)**2)
+def get_t_matrix(t, n_terms):
+    # do once at the beginning of any calculation to improve performance
+    return np.tile(t, (n_terms, 1)).T
 
-    def gradient(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        stiffness_derivs = array([convolve(ones(t.shape), h**(3/2), 'full')[: t.size] * (t[1] - t[0]),
-                                  convolve(exp(-t / T1), h**(3/2), 'full')[: t.size] * (t[1] - t[0]),
-                                  convolve(E1 * t / T1**2 * exp(-t / T1), h**(3/2), 'full')[: t.size] * (t[1] - t[0])])
-        return sum(2 * (force_predicted - force_data) * (16 * sqrt(R) / 3 * stiffness_derivs), axis=1)
+def maxwell_force(Q_array, t_matrix, t, h, R):  # this is over 100 times faster than the np.convolve method (0.04s vs 1.34s)
+    return sqrt(R) * 16 / 3 * cumtrapz((Q_array[0] - sum(Q_array[1::2] / Q_array[2::2]
+                                                               * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=0)
+
+
+class SSEScaledGenMaxwell(ObjectiveFunction):
+    def function(self, Q_array):
+        force_data, t_matrix, t, h, R = self.params
+        return sum((1 + t)**20 * (maxwell_force(Q_array, t_matrix, t, h, R) - force_data)**2, axis=0)
+
+
+class SSESingleMaxwell(ObjectiveFunction):
+    def function(self, Q_array):
+        force_data, t_matrix, t, h, R = self.params
+        return sum((maxwell_force(Q_array, t_matrix, t, h, R) - force_data)**2, axis=0)
+
+    def gradient(self, Q_array):
+        force_data, t_matrix, t, h, R = self.params
+        pred_force = array([maxwell_force(Q_array, t_matrix, t, h, R),
+                            maxwell_force(Q_array, t_matrix, t, h, R),
+                            maxwell_force(Q_array, t_matrix, t, h, R)])
+        grad_Q = 16 * sqrt(R) / 3 * array([cumtrapz(h**(3 / 2), t, initial=0),
+                                           cumtrapz(- exp(-t / Q_array[2]) / Q_array[2] * h**(3 / 2), t, initial=0),
+                                           cumtrapz(- Q_array[1] / Q_array[2]**2 * exp(-t / Q_array[2]) * (t / Q_array[2] - 1) * h**(3 / 2), t, initial=0)])
+        return sum((pred_force - force_data) * 2 * grad_Q, axis=1)
 
     def hessian(self, X):
+        print('wrong')
         force_data, t, h, R, norm_weights = self.params
         if norm_weights is None:
             norm_weights = 1
@@ -304,76 +320,7 @@ class SSESingleMaxwell(ObjectiveFunction):
                       [dp1p3, dp2p3, dp3p3]])
 
 
-class SSEDoubleMaxwell(ObjectiveFunction):
-    def function(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1, E2, T2 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        return sum((force_predicted - force_data)**2)
-
-    def gradient(self, X):
-        raise NotImplementedError
-
-    def hessian(self, X):
-        raise NotImplementedError
-
-
-class SSETripleMaxwell(ObjectiveFunction):
-    def function(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1, E2, T2, E3, T3 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        return sum((force_predicted - force_data)**2)
-
-    def gradient(self, X):
-        raise NotImplementedError
-
-    def hessian(self, X):
-        raise NotImplementedError
-
-
-class SSEQuadMaxwell(ObjectiveFunction):
-    def function(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1, E2, T2, E3, T3, E4, T4 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3) + E4 * np.exp(-t / T4)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        return sum((force_predicted - force_data)**2)
-
-    def gradient(self, X):
-        raise NotImplementedError
-
-    def hessian(self, X):
-        raise NotImplementedError
-
-
-class SSEQuintMaxwell(ObjectiveFunction):
-    def function(self, X):
-        force_data, t, h, R, norm_weights = self.params
-        if norm_weights is None:
-            norm_weights = 1
-        Ee, E1, T1, E2, T2, E3, T3, E4, T4, E5, T5 = X * norm_weights
-        model_stiffness = Ee + E1 * np.exp(-t / T1) + E2 * np.exp(-t / T2) + E3 * np.exp(-t / T3)\
-                          + E4 * np.exp(-t / T4) + E5 * np.exp(-t / T5)
-        force_predicted = sqrt(R) * 16 / 3 * convolve(model_stiffness, h**(3/2), 'full')[: t.size] * (t[1] - t[0])
-        return sum((force_predicted - force_data)**2)
-
-    def gradient(self, X):
-        raise NotImplementedError
-
-    def hessian(self, X):
-        raise NotImplementedError
-
-
-def fit_maxwell(objective, initial_guess):
+def fit_maxwell_nelder(objective, initial_guess):
     result = minimize(objective.function, initial_guess, method='nelder-mead', options={'maxiter': 10000,
                                                                                         'fatol': 10e-60,
                                                                                         'xatol': 10e-20})
