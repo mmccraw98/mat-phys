@@ -1,6 +1,6 @@
 import numpy as np
 import helperfunctions as hf
-import viscoelastic_models as vm
+import afm_sim_functions as vm
 import matplotlib.pyplot as plt
 
 hf.tic()

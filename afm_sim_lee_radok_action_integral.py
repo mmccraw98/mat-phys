@@ -1,4 +1,4 @@
-from viscoelastic_models import maxwell_tip_sample_force_lee_and_radok_action_integral_formulation
+from afm_sim_functions import maxwell_tip_sample_force_lee_and_radok_action_integral_formulation
 import numpy as np
 import matplotlib.pyplot as plt
 

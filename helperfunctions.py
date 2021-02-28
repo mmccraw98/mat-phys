@@ -1,9 +1,10 @@
-from numpy import cumsum, convolve, ones, exp, diff, linspace, pi
+from numpy import cumsum, convolve, ones, exp, diff, linspace, pi, random
 from time import time
 import psutil
 import pickle
 import os
 import re
+from pandas import read_csv, read_excel
 
 
 def deg_to_rad(angle):
@@ -110,9 +111,35 @@ def safesave(thing, path, overwrite=False):
         thing.to_csv(path, index=False)
     elif extension == 'xlsx':
         thing.to_xlsx(path, index=False)
+    elif extension == 'txt':
+        with open(path, 'w') as f:
+            f.write(thing)
     else:
         with open(path, 'wb') as f:
             pickle.dump(thing, f)
+
+
+def load(path):
+    '''
+    loads data from a number of formats into python
+    :param path: str path to thing being loaded in
+    :return: the data
+    '''
+    if not os.path.isfile(path):
+        exit('file does not exist')
+    file_name = os.path.basename(path)  # file name
+    extension = file_name.split(sep='.')[-1]
+    if extension == 'csv':
+        data = read_csv(path)
+    elif extension == 'xlsx':
+        data = read_excel(path)
+    elif extension == 'txt':
+        with open(path, 'r') as f:
+            data = f.read()
+    else:
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+    return data
 
 
 def selectyesno(prompt):
@@ -141,4 +168,14 @@ def altspace(start, step, count, **kwargs):
     :return:
     '''
     return linspace(start, start + (step * count), count, endpoint=False, **kwargs)
+
+
+def gaussian_white_noise(amplitude, shape):
+    '''
+    creates a gaussian white noise signal for adding experimental noise to a signal
+    :param amplitude: float amplitude (2 * standard deviation) of the noise signal
+    :param num_samples: tuple of ints size of the signal
+    :return: (num_samples, num_signals) numpy array with the noise signal
+    '''
+    return random.normal(mean=0, std=amplitude / 2, size=shape)
 

@@ -1,6 +1,6 @@
 import numpy as np
 import helperfunctions as hf
-from viscoelastic_models import f_ts_jeff_williams_gen_maxwell_model
+from afm_sim_functions import f_ts_jeff_williams_gen_maxwell_model
 import matplotlib.pyplot as plt
 
 # time settings
