@@ -31,8 +31,9 @@ for i, Q_real in enumerate(Q_vals):
     force_real = maxwell_force(Q_real, t_matrix_sim, t, h, R)
     for num_arms in range(1, 5):
         print('---Fitting Attempt {} of 4'.format(num_arms))
+        # collect the right bounds for the current guess scheme
         bound = bounds[: 1 + 2 * num_arms]
-        t_matrix = get_t_matrix(t, Q_real[2::2].size)  # for speedy calculations (this one is for the current guess NOT THE SIM)
+        t_matrix = get_t_matrix(t, num_arms)  # for speedy calculations (this one is for the current guess NOT THE SIM)
         obj = SSEScaledGenMaxwell(force_real, t_matrix, t, h, R)  # define the objective function
         hf.tic()  # start the timer
         # do the optimization
