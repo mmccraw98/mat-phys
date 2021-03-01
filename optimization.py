@@ -2,6 +2,7 @@ import numpy as np
 from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron
 from scipy.optimize import minimize
 from scipy.integrate import cumtrapz
+from matplotlib import pyplot
 
 
 class GDALRM:
@@ -269,9 +270,27 @@ def get_t_matrix(t, n_terms):
     # do once at the beginning of any calculation to improve performance
     return np.tile(t, (n_terms, 1)).T
 
+
 def maxwell_force(Q_array, t_matrix, t, h, R):  # this is over 100 times faster than the np.convolve method (0.04s vs 1.34s)
     return sqrt(R) * 16 / 3 * cumtrapz((Q_array[0] - sum(Q_array[1::2] / Q_array[2::2]
-                                                               * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=0)
+                                                               * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=t[0])
+
+
+# omega = 2 * np.pi * np.logspace(0, 4.5, 1000)
+def harmonic_shear_response(Q_array, omega, generate_plots=False, show=False):
+    omega_matrix = get_t_matrix(omega, Q_array[1::2].size)
+    G1 = Q_array[0] + sum(Q_array[1::2] * omega_matrix**2 * Q_array[2::2]**2 / (1 + omega_matrix**2 * Q_array[2::2]**2), axis=1)
+    G2 = sum(Q_array[1::2] * omega_matrix * Q_array[2::2] / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
+    if generate_plots:
+        pyplot.subplot(1, 2, 1)
+        pyplot.plot(omega, G1)
+        pyplot.yscale('log'), pyplot.xscale('log'), pyplot.grid(), pyplot.title('Loss'), pyplot.xlabel('ω'), pyplot.ylabel('G\'')
+        pyplot.subplot(1, 2, 2)
+        pyplot.plot(omega, G2)
+        pyplot.yscale('log'), pyplot.xscale('log'), pyplot.grid(), pyplot.title('Storage'), pyplot.xlabel('ω'), pyplot.ylabel('G\"')
+        if show:
+            pyplot.show()
+    return G1, G2
 
 
 class SSEScaledGenMaxwell(ObjectiveFunction):

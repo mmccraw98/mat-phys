@@ -119,6 +119,19 @@ def safesave(thing, path, overwrite=False):
             pickle.dump(thing, f)
 
 
+def get_files(dir, req_ext=None):
+    '''
+    gets all the files in the given directory
+    :param dir: str directory from which you want to load files from
+    :param req_ext: optional str required file extension
+    :return: list of str names of the files in the given directory
+    '''
+    if req_ext is None:
+        return [os.path.join(dir, f) for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f))]
+    else:
+        return [os.path.join(dir, f) for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f)) and req_ext in f]
+
+
 def load(path):
     '''
     loads data from a number of formats into python
@@ -177,5 +190,5 @@ def gaussian_white_noise(amplitude, shape):
     :param num_samples: tuple of ints size of the signal
     :return: (num_samples, num_signals) numpy array with the noise signal
     '''
-    return random.normal(mean=0, std=amplitude / 2, size=shape)
+    return random.normal(loc=0, scale=amplitude / 2, size=shape)
 

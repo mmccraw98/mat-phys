@@ -1,10 +1,10 @@
 import numpy as np
-from optimization import get_t_matrix, SSEScaledGenMaxwell, maxwell_force
+from optimization import get_t_matrix, SSEScaledGenMaxwell, maxwell_force, harmonic_shear_response
 from scipy import optimize
 import helperfunctions as hf
 import os
 
-Q_vals = np.array([np.array([1e4, 1e6, 1e-2]),  # 1 arm
+Q_vals = np.array([ np.array([1e4, 1e6, 1e-2]),  # 1 arm
                    np.array([3e4, 5e5, 5e-3]),
                    np.array([5e4, 5e4, 5e-4]),
 
@@ -29,6 +29,7 @@ for i, Q_real in enumerate(Q_vals):
     h = t / max(t) * 50e-9  # ramp input
     R = 100e-9  # 100 nm tip radius
     force_real = maxwell_force(Q_real, t_matrix_sim, t, h, R)
+    ## adds noise -> force_real += hf.gaussian_white_noise(0.1 * np.max(force_real), force_real.shape)
     for num_arms in range(1, 5):
         print('---Fitting Attempt {} of 4'.format(num_arms))
         # collect the right bounds for the current guess scheme
@@ -43,4 +44,4 @@ for i, Q_real in enumerate(Q_vals):
                    'time': t, 'indentation': h, 'tip_radius': R}
         # save the results
         file_name = str(num_arms) + '_arms_guess_' + str(Q_real[2::2].size) + '_arms_real.pkl'
-        hf.safesave(results, os.path.join('data', 'fitting_no_noise_ramp', file_name))
+        hf.safesave(results, os.path.join('data', 'fitting_noise_ramp', file_name))
