@@ -1,5 +1,5 @@
 import numpy as np
-from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron
+from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron, tile
 from scipy.optimize import minimize
 from scipy.integrate import cumtrapz
 from matplotlib import pyplot
@@ -266,31 +266,59 @@ class Rosenbrock(ObjectiveFunction):
         return array([[2 - 4 * b * (y - 3 * x**2), -4 * b * x], [-4 * b * x, 2 * b]])
 
 
-def get_t_matrix(t, n_terms):
+def row2mat(row, n): #@TODO move to helperfunctions
+    '''
+    stacks a row vector (numpy (m, )) n times to create a matrix (numpy (m, n)) NOTE: CAN SLOW DOWN COMPUTATION IF DONE MANY TIMES
+    :param row: numpy array row vector
+    :param n: int number of replications to perform
+    :return: numpy matrix (m, n) replicated row vector
+    '''
     # do once at the beginning of any calculation to improve performance
-    return np.tile(t, (n_terms, 1)).T
+    return tile(row, (n, 1)).T
 
 
+# t_matrix should be the size (len(t), num arms)
 def maxwell_force(Q_array, t_matrix, t, h, R):  # this is over 100 times faster than the np.convolve method (0.04s vs 1.34s)
     return sqrt(R) * 16 / 3 * cumtrapz((Q_array[0] - sum(Q_array[1::2] / Q_array[2::2]
                                                                * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=t[0])
 
 
+def maxwell_shear(Q_array, f):
+    omega_matrix = row2mat(2 * pi * f, Q_array[1::2].size)
+    G1 = Q_array[0] + sum(Q_array[1::2] * omega_matrix ** 2 * Q_array[2::2] ** 2 / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
+    G2 = sum(Q_array[1::2] * omega_matrix * Q_array[2::2] / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
+    return G1, G2
+
+
 # omega = 2 * np.pi * np.logspace(0, 4.5, 1000)
-def harmonic_shear_response(Q_array, omega, generate_plots=False, show=False):
-    omega_matrix = get_t_matrix(omega, Q_array[1::2].size)
+def harmonic_shear_response(Q_array, omega, generate_plots=False, show=False, labels=['', ''], title=''):
+    omega_matrix = row2mat(omega, Q_array[1::2].size)
     G1 = Q_array[0] + sum(Q_array[1::2] * omega_matrix**2 * Q_array[2::2]**2 / (1 + omega_matrix**2 * Q_array[2::2]**2), axis=1)
     G2 = sum(Q_array[1::2] * omega_matrix * Q_array[2::2] / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
     if generate_plots:
         pyplot.subplot(1, 2, 1)
-        pyplot.plot(omega, G1)
+        pyplot.plot(omega, G1, label=labels[0])
         pyplot.yscale('log'), pyplot.xscale('log'), pyplot.grid(), pyplot.title('Loss'), pyplot.xlabel('ω'), pyplot.ylabel('G\'')
+        pyplot.legend()
         pyplot.subplot(1, 2, 2)
-        pyplot.plot(omega, G2)
+        pyplot.plot(omega, G2, label=labels[1])
         pyplot.yscale('log'), pyplot.xscale('log'), pyplot.grid(), pyplot.title('Storage'), pyplot.xlabel('ω'), pyplot.ylabel('G\"')
+        pyplot.legend()
+        pyplot.suptitle(title)
         if show:
             pyplot.show()
     return G1, G2
+
+
+def compare_shear_response(Q_real, Q_final, cost, arms_true, arms_guess):
+    omega = 2 * pi * np.logspace(0, 4.5, 1000)
+    harmonic_shear_response(Q_real, omega, True, False, labels=['Real', 'Real'], title='N Real: {} N Guess: {} Cost: {}'.format(
+        arms_true, arms_guess, cost
+    ))
+    harmonic_shear_response(Q_final, omega, True, True, labels=['Fit', 'Fit'], title='N Real: {} N Guess: {} Cost: {}'.format(
+        arms_true, arms_guess, cost
+    ))
+
 
 
 class SSEScaledGenMaxwell(ObjectiveFunction):

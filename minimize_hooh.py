@@ -28,8 +28,38 @@ def plot_hooh_state(state, title=''):
     plots the geometric state of the hooh molecule
     :param state: numpy array state of the hooh molecule in x, y, z coordinates
     :param title: optional str title of the plot
-    :return: plot of the geometryic state of the hooh molecule
+    :return: plot of the geometric state of the hooh molecule
     '''
+
+    # the below function was taken from stackoverflow to ensure that the 3D plot has even axis scales
+    def set_axes_equal(ax):
+        '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+        cubes as cubes, etc..  This is one possible solution to Matplotlib's
+        ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+        Input
+          ax: a matplotlib axis, e.g., as output from plt.gca().
+        '''
+
+        x_limits = ax.get_xlim3d()
+        y_limits = ax.get_ylim3d()
+        z_limits = ax.get_zlim3d()
+
+        x_range = abs(x_limits[1] - x_limits[0])
+        x_middle = np.mean(x_limits)
+        y_range = abs(y_limits[1] - y_limits[0])
+        y_middle = np.mean(y_limits)
+        z_range = abs(z_limits[1] - z_limits[0])
+        z_middle = np.mean(z_limits)
+
+        # The plot bounding box is a sphere in the sense of the infinity
+        # norm, hence I call half the max range the plot radius.
+        plot_radius = 0.5 * max([x_range, y_range, z_range])
+
+        ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+        ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+        ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(state[::3, 0], state[::3, 1], state[::3, 2], c='#636363', s=250)  # hydrogens
@@ -42,6 +72,7 @@ def plot_hooh_state(state, title=''):
     ax.set_xlabel('X Distance (Å)')
     ax.set_ylabel('Y Distance (Å)')
     ax.set_zlabel('Z Distance (Å)')
+    set_axes_equal(ax)
     plt.show()
 
 
@@ -159,3 +190,4 @@ print('Angle HOO 2: {:.2f}°'.format(rad_to_deg(hoo.angle_ijk(p2, p3, p4))))
 print('Length HO 1: {:.2f} Å'.format(np.sqrt(np.sum((p1-p2)**2))))
 print('Length OO:   {:.2f} Å'.format(np.sqrt(np.sum((p2-p3)**2))))
 print('Length HO 2: {:.2f} Å'.format(np.sqrt(np.sum((p3-p4)**2))))
+print('Length HH: {:.2f} Å'.format(np.sqrt(np.sum((p1-p4)**2))))

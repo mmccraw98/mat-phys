@@ -1,5 +1,5 @@
 import numpy as np
-from optimization import get_t_matrix, SSEScaledGenMaxwell, maxwell_force, harmonic_shear_response
+from optimization import row2mat, SSEScaledGenMaxwell, maxwell_force, harmonic_shear_response
 from scipy import optimize
 import helperfunctions as hf
 import os
@@ -32,7 +32,7 @@ bounds = ((1e1, 1e9), (1e1, 1e9), (1e-5, 1e-1), (1e1, 1e9), (1e-5, 1e-1), (1e1, 
 for i, Q_real in enumerate(Q_vals):
     print('Trial {} of {}'.format(i + 1, len(Q_vals)))
     t = np.arange(0, 1, 0.0001)  # second time signal
-    t_matrix_sim = get_t_matrix(t, Q_real[2::2].size)  # for speedy calculations (this one is for the sim data NOT THE GUESS)
+    t_matrix_sim = row2mat(t, Q_real[2::2].size)  # for speedy calculations (this one is for the sim data NOT THE GUESS)
     h = t / max(t) * 50e-9  # ramp input
     R = 100e-9  # 100 nm tip radius
     force_real = maxwell_force(Q_real, t_matrix_sim, t, h, R)
@@ -42,7 +42,7 @@ for i, Q_real in enumerate(Q_vals):
         print('---Fitting Attempt {} of 4'.format(num_arms))
         # collect the right bounds for the current guess scheme
         bound = bounds[: 1 + 2 * num_arms]
-        t_matrix = get_t_matrix(t, num_arms)  # for speedy calculations (this one is for the current guess NOT THE SIM)
+        t_matrix = row2mat(t, num_arms)  # for speedy calculations (this one is for the current guess NOT THE SIM)
         obj = SSEScaledGenMaxwell(force_real, t_matrix, t, h, R)  # define the objective function
         hf.tic()  # start the timer
         # do the optimization
