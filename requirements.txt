@@ -7,3 +7,5 @@ sympy==1.7.1
 numba==0.51.2
 ## causes issues in linux cudatoolkit==11.0.221
 scikit-learn==0.23.2
+openpyxl==3.0.6  # for loading xlsx files in helperfunctions.load()
+scikit-image==0.17.2  # for generating elliptical potentials

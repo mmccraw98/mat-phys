@@ -132,7 +132,7 @@ def get_files(dir, req_ext=None):
         return [os.path.join(dir, f) for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f)) and req_ext in f]
 
 
-def load(path):
+def load(path, override_extension=None):
     '''
     loads data from a number of formats into python
     :param path: str path to thing being loaded in
@@ -142,16 +142,18 @@ def load(path):
         exit('file does not exist')
     file_name = os.path.basename(path)  # file name
     extension = file_name.split(sep='.')[-1]
-    if extension == 'csv':
+    if extension == 'csv' or override_extension == 'csv':
         data = read_csv(path)
-    elif extension == 'xlsx':
-        data = read_excel(path)
-    elif extension == 'txt':
+    elif extension == 'xlsx' or override_extension == 'xlsx':
+        data = read_excel(path, engine='openpyxl')
+    elif extension == 'txt' or override_extension == 'txt':
         with open(path, 'r') as f:
             data = f.read()
-    else:
+    elif extension == 'pkl' or override_extension == 'pkl':
         with open(path, 'rb') as f:
             data = pickle.load(f)
+    else:
+        exit('file extension not yet supported: {}'.format(file_name))
     return data
 
 
