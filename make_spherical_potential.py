@@ -4,7 +4,7 @@ from scipy import ndimage
 
 
 # add sphere potential
-def vect_circle(r):
+def circle_matx(r):
     A = np.arange(-r, r + 1)**2
     dists = np.sqrt(A[:, None] + A)
     return ((dists - r) < 0.5).astype(int)
@@ -16,11 +16,11 @@ bonds = hf.load(r'C:\Users\Windows\PolymerSimulation\lammps_simulations\bonds.xl
 ids = xyz[:, 0].astype(int)  # only IDS
 xy = xyz[:, :3].astype(float)  # ID, X, Y
 
-dr = 0.001
+dr = 0.01
 
 r_sph = 0.5  # radius of the potential surrounding each sphere
 r_sph_dscr = int(r_sph / dr)  # discretized potential radius
-sph_clone = vect_circle(r_sph_dscr)  # 'image' of circular potential surrounding each sphere
+sph_clone = circle_matx(r_sph_dscr)  # 'image' of circular potential surrounding each sphere
 
 pad = r_sph * 3  # padding to prevent clipping
 xy[:, 1] -= np.min(xy[:, 1])
@@ -43,17 +43,3 @@ electrode[electrode < sharpness] = 0.0
 electrode[electrode >= sharpness] = 1.0
 electrode[int(0.1 * sim_box.shape[0]): int(0.9 * sim_box.shape[0])] = 0.0  # only consider the lower and upper boundaries for electroding
 sim_box += electrode  # put the electrodes into the sim box
-
-import matplotlib.pyplot as plt
-# cmap = plt.cm.gray
-# norm = plt.Normalize(sim_box.min(), sim_box.max())
-# rgba = cmap(norm(sim_box))
-# rgba[range(10), range(10), :3] = 1, 0, 0
-# plt.imshow(rgba, interpolation='nearest')
-# plt.show()
-# plt.imshow(sim_box)
-# plt.show()
-
-
-plt.imshow(sim_box)
-plt.show()
