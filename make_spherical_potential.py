@@ -11,8 +11,8 @@ def circle_matx(r):
 
 
 # xyz in the form of ID, X, Y, Z
-xyz = np.array([row.split(sep=' ') for row in hf.load(r'C:\Users\Windows\PolymerSimulation\lammps_simulations\dump_final.polymer.xyz', override_extension='txt').split(sep='\n')[9:] if len(row) > 1])
-bonds = hf.load(r'C:\Users\Windows\PolymerSimulation\lammps_simulations\bonds.xlsx').values.astype(int)
+xyz = np.array([row.split(sep=' ') for row in hf.load(r'lammps_simulations\dump_final.polymer.xyz', override_extension='txt').split(sep='\n')[9:] if len(row) > 1])
+bonds = hf.load(r'lammps_simulations\bonds.xlsx').values.astype(int)
 ids = xyz[:, 0].astype(int)  # only IDS
 xy = xyz[:, :3].astype(float)  # ID, X, Y
 
@@ -28,8 +28,18 @@ xy[:, 2] -= np.min(xy[:, 2])
 xy_r = (xy[:, 1:] + pad) / dr
 
 x_max, x_min = np.max(xy[:, 1]) + pad, np.min(xy[:, 1]) - pad
+x_range = x_max - x_min
 y_max, y_min = np.max(xy[:, 2]) + pad, np.min(xy[:, 2]) - pad
+y_range = y_max - y_min
+
+# make sure that the potential is square
+if x_range > y_range:
+    y_max = y_min + x_range
+elif y_range > x_range:
+    x_max = x_min + y_range
+
 sim_box = np.zeros((int(np.floor((y_max - y_min) / dr)), int(np.floor((x_max - x_min) / dr))))
+X, Y = np.linspace(x_min, x_max, sim_box.shape[1]), np.linspace(y_min, y_max, sim_box.shape[0])
 
 # put the 'image' of the circular potential around each of the sphere's centers
 for sx, sy in np.floor(xy_r).astype(int):
@@ -43,3 +53,20 @@ electrode[electrode < sharpness] = 0.0
 electrode[electrode >= sharpness] = 1.0
 electrode[int(0.1 * sim_box.shape[0]): int(0.9 * sim_box.shape[0])] = 0.0  # only consider the lower and upper boundaries for electroding
 sim_box += electrode  # put the electrodes into the sim box
+
+# form initial wavefunction (including the electrode)
+width = 1
+psi_0 = ndimage.gaussian_filter(sim_box, sigma=width)
+
+# flip the values of the potential conducting space -> 0 potential
+sim_box = abs(sim_box - 1)
+
+
+hf.safesave(sim_box, r'lammps_simulations\potential_field.pkl', overwrite=True)
+hf.safesave(psi_0, r'lammps_simulations\psi_init.pkl', overwrite=True)
+hf.safesave(X, r'lammps_simulations\x_axis.pkl', overwrite=True)
+hf.safesave(Y, r'lammps_simulations\y_axis.pkl', overwrite=True)
+
+# import matplotlib.pyplot as plt
+# plt.imshow(sim_box, aspect='auto', cmap=plt.get_cmap('Greys'))
+# plt.show()
