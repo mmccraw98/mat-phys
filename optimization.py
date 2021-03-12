@@ -1,8 +1,9 @@
 import numpy as np
-from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron, tile
+from numpy import array, sum, sqrt, convolve, exp, ones, cos, dot, pi, arccos, kron, tile, abs, log10
 from scipy.optimize import minimize
 from scipy.integrate import cumtrapz
 from matplotlib import pyplot
+import numdifftools as nd
 
 
 class GDALRM:
@@ -155,6 +156,66 @@ class coulomb_ij(ObjectiveFunction):
         return - self.gradient_wrt_rj(ri, rj)
 
 
+class dihedral_ijkl(ObjectiveFunction):
+    def potential(self, ri, rj, rk, rl):
+        kp, p0 = self.params
+        rij = ri - rj
+        rkj = rk - rj
+        rlk = rl - rk
+        k1 = np.cross(rkj, rij)
+        k2 = np.cross(rlk, rkj)
+        cos_p = np.dot(k1, k2) / (np.linalg.norm(k1) * np.linalg.norm(k2))
+        return kp * (cos_p - np.cos(p0)) ** 2
+
+    def gradient_wrt_ri(self, ri, rj, rk, rl):
+        def func(ri_grad):
+            kp, p0 = self.params
+            rij = ri_grad - rj
+            rkj = rk - rj
+            rlk = rl - rk
+            k1 = np.cross(rkj, rij)
+            k2 = np.cross(rlk, rkj)
+            cos_p = np.dot(k1, k2) / (np.linalg.norm(k1) * np.linalg.norm(k2))
+            return kp * (cos_p - np.cos(p0)) ** 2
+        return nd.Gradient(func)(ri)
+
+    def gradient_wrt_rj(self, ri, rj, rk, rl):
+        def func(rj_grad):
+            kp, p0 = self.params
+            rij = ri - rj_grad
+            rkj = rk - rj_grad
+            rlk = rl - rk
+            k1 = np.cross(rkj, rij)
+            k2 = np.cross(rlk, rkj)
+            cos_p = np.dot(k1, k2) / (np.linalg.norm(k1) * np.linalg.norm(k2))
+            return kp * (cos_p - np.cos(p0)) ** 2
+        return nd.Gradient(func)(rj)
+
+    def gradient_wrt_rk(self, ri, rj, rk, rl):
+        def func(rk_grad):
+            kp, p0 = self.params
+            rij = ri - rj
+            rkj = rk_grad - rj
+            rlk = rl - rk_grad
+            k1 = np.cross(rkj, rij)
+            k2 = np.cross(rlk, rkj)
+            cos_p = np.dot(k1, k2) / (np.linalg.norm(k1) * np.linalg.norm(k2))
+            return kp * (cos_p - np.cos(p0)) ** 2
+        return nd.Gradient(func)(rk)
+
+    def gradient_wrt_rl(self, ri, rj, rk, rl):
+        def func(rl_grad):
+            kp, p0 = self.params
+            rij = ri - rj
+            rkj = rk - rj
+            rlk = rl_grad - rk
+            k1 = np.cross(rkj, rij)
+            k2 = np.cross(rlk, rkj)
+            cos_p = np.dot(k1, k2) / (np.linalg.norm(k1) * np.linalg.norm(k2))
+            return kp * (cos_p - np.cos(p0)) ** 2
+        return nd.Gradient(func)(rl)
+
+
 class lennard_jones_ij(ObjectiveFunction):
     def potential(self, ri, rj):
         e, s = self.params
@@ -278,16 +339,26 @@ def row2mat(row, n): #@TODO move to helperfunctions
 
 
 # t_matrix should be the size (len(t), num arms)
+#@TODO ENSURE THAT TRAPEZOIDAL INTEGRATION ACHIEVES SAME RESULT AS CONVOLUTION!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 def maxwell_force(Q_array, t_matrix, t, h, R):  # this is over 100 times faster than the np.convolve method (0.04s vs 1.34s)
     return sqrt(R) * 16 / 3 * cumtrapz((Q_array[0] - sum(Q_array[1::2] / Q_array[2::2]
                                                                * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=t[0])
-
+def maxwell_force_dumb_and_slow(Q_array, t, h, R):  # this is over 100 times faster than the np.convolve method (0.04s vs 1.34s)
+    t_matrix = row2mat(t, Q_array[1::2].size)
+    return sqrt(R) * 16 / 3 * cumtrapz((Q_array[0] - sum(Q_array[1::2] / Q_array[2::2]
+                                                               * exp(-t_matrix / Q_array[2::2]), axis=1)) * h**(3 / 2), t, initial=t[0])
 
 def maxwell_shear(Q_array, f):
     omega_matrix = row2mat(2 * pi * f, Q_array[1::2].size)
     G1 = Q_array[0] + sum(Q_array[1::2] * omega_matrix ** 2 * Q_array[2::2] ** 2 / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
     G2 = sum(Q_array[1::2] * omega_matrix * Q_array[2::2] / (1 + omega_matrix ** 2 * Q_array[2::2] ** 2), axis=1)
     return G1, G2
+
+
+def maxwell_shear_sse(Q_real, Q_guess, f):
+    G1_real, G2_real = maxwell_shear(Q_real, f)
+    G1_guess, G2_guess = maxwell_shear(Q_guess, f)
+    return np.sum((G1_real - G1_guess)**2), np.sum((G2_real - G2_guess)**2)
 
 
 # omega = 2 * np.pi * np.logspace(0, 4.5, 1000)
@@ -323,8 +394,42 @@ def compare_shear_response(Q_real, Q_final, cost, arms_true, arms_guess):
 
 class SSEScaledGenMaxwell(ObjectiveFunction):
     def function(self, Q_array):
+        # if 1e2 > Q_array[0] > 1e9:
+        #     return np.inf
+        # if 1e2 > Q_array[1::2] > 1e9:
+        #     return np.inf
+        # if 1e0 > Q_array[2::2] > 1e-6:
+        #     return np.inf
         force_data, t_matrix, t, h, R = self.params
-        return sum((1 + t)**20 * (maxwell_force(Q_array, t_matrix, t, h, R) - force_data)**2, axis=0)
+        time_weight = (1 + t)**25
+        return sum((maxwell_force(Q_array, t_matrix, t, h, R) - force_data)**2, axis=0)
+
+
+class SSE_simultaneous_gen_maxwell():
+    def __init__(self, config):
+        # args is a dict of nparrays of nparrays!
+        # load forces, load times, make time matrices? (no for now?), load indentations, load radii
+        self.forces = config['f']
+        self.times = config['t']
+        self.indentations = config['h']
+        self.radii = config['R']
+
+    def test_function(self, Q_array):
+        # calculate test force data
+        test_forces = np.array([maxwell_force_dumb_and_slow(Q_array, t, h, R) for t, h, R in
+                                zip(self.times, self.indentations, self.radii)])
+        # calculate global residual
+        residual_global = self.forces - test_forces
+        # return sse
+        return np.sum(residual_global**2)
+
+    def function(self, Q_array):
+        #force_1, force_2, t_matrix_1, t_matrix_2, t_1, t_2, h_1, h_2, R = self.params
+        #@TODO make this unpack [force, t_matrix, t, h, R] from each arg in the init
+        #@TODO notes: might need to make a dedicated init for this class
+        #@TODO notes: i.e. SSE_simultaneous_gen_maxwell([force, t_matrix, t, h, R], [force, t_matrix, t, h, R])
+        #@TODO notes: then simply calculate residuals for each arg in the init and add them
+        pass
 
 
 class SSESingleMaxwell(ObjectiveFunction):

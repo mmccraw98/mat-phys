@@ -1,6 +1,6 @@
 from numba import jit, cuda
 import numpy as np
-from helperfunctions import tic, toc
+from auxilary import tic, toc
 
 def cpu_func(a):
     for i in range(10000000):
