@@ -361,6 +361,14 @@ def maxwell_shear_sse(Q_real, Q_guess, f):
     return np.sum((G1_real - G1_guess)**2), np.sum((G2_real - G2_guess)**2)
 
 
+def maxwell_total_modulus_sse(Q_real, Q_guess, f):
+    G1_real, G2_real = maxwell_shear(Q_real, f)
+    G1_guess, G2_guess = maxwell_shear(Q_guess, f)
+    mod_real = G1_real ** 2 + G2_real ** 2
+    mod_guess = G1_guess ** 2 + G2_guess ** 2
+    return np.sum((mod_real - mod_guess) ** 2)
+
+
 # omega = 2 * np.pi * np.logspace(0, 4.5, 1000)
 def harmonic_shear_response(Q_array, omega, generate_plots=False, show=False, labels=['', ''], title=''):
     omega_matrix = row2mat(omega, Q_array[1::2].size)
