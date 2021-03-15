@@ -361,7 +361,7 @@ def maxwell_shear_sse(Q_real, Q_guess, f):
     return np.sum((G1_real - G1_guess)**2), np.sum((G2_real - G2_guess)**2)
 
 
-def maxwell_total_modulus_sse(Q_real, Q_guess, f):
+def maxwell_absolute_modulus_sse(Q_real, Q_guess, f):
     G1_real, G2_real = maxwell_shear(Q_real, f)
     G1_guess, G2_guess = maxwell_shear(Q_guess, f)
     mod_real = G1_real ** 2 + G2_real ** 2
@@ -414,13 +414,13 @@ class SSEScaledGenMaxwell(ObjectiveFunction):
 
 
 class SSE_simultaneous_gen_maxwell():
-    def __init__(self, config):
+    def __init__(self, forces, times, indentations, radii):
         # args is a dict of nparrays of nparrays!
         # load forces, load times, make time matrices? (no for now?), load indentations, load radii
-        self.forces = config['f']
-        self.times = config['t']
-        self.indentations = config['h']
-        self.radii = config['R']
+        self.forces = forces
+        self.times = times
+        self.indentations = indentations
+        self.radii = radii
 
     def test_function(self, Q_array):
         # calculate test force data
@@ -429,7 +429,10 @@ class SSE_simultaneous_gen_maxwell():
         # calculate global residual
         residual_global = self.forces - test_forces
         # return sse
-        return np.sum(residual_global**2)
+        sse = np.sum(residual_global**2)
+        if (np.where(np.logical_and(Q_array[0] <= 1e1, Q_array[0] >= 1e9))[0].size > 0) or (np.where(np.logical_and(Q_array[1::2] <= 1e1, Q_array[1::2] >= 1e9))[0].size > 0) or (np.where(np.logical_and(Q_array[2::2] <= 1e-6, Q_array[2::2] >= 1e0))[0].size > 0):
+            return sse * 1e20
+        return sse
 
     def function(self, Q_array):
         #force_1, force_2, t_matrix_1, t_matrix_2, t_1, t_2, h_1, h_2, R = self.params
@@ -487,3 +490,17 @@ def fit_maxwell_nelder(objective, initial_guess):
     fit_params = result.x
     return fit_params, result.fun, result.nit
 
+
+class gaussianObjective(ObjectiveFunction):
+    def __init__(self, r):
+        self.r = r
+    def function(self, X):
+        mu, sigma = X
+        return 1 / (sigma * sqrt(2 * pi)) * exp(- 1 / 2 * ((self.r - mu) / sigma) ** 2)
+    def gradient(self, X):
+        mu, sigma = X
+        return array([(self.r - mu) / sigma ** 2 * self.function(X),
+                      ((self.r - mu) / sigma ** 3 - 1 / sigma) * self.function(X)])
+    def gradient_wrt_r(self, X):
+        mu, sigma = X
+        return (mu - self.r) / sigma ** 2 * self.function(X)
