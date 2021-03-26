@@ -506,24 +506,25 @@ class gaussianObjective(ObjectiveFunction):
         return (mu - self.r) / sigma ** 2 * self.function(X)
 
 class MultiGaussianObjective(ObjectiveFunction):
-    def __init__(self, r):
+    def __init__(self, r, real):
         self.r = r
+        self.real = real
 
     def function(self, X):
-        mu, sigma = X[0::2], X[1::2]
-        return sum(1 / (sigma * sqrt(2 * pi)) * exp(- 1 / 2 * ((row2mat(self.r, mu.size) - mu) / sigma) ** 2), axis=1)
+        c, a = X[0::2], X[1::2]
+        return sum(c * exp(- a * row2mat(self.r, c.size) ** 2), axis=1)
 
     def function_gradient(self, X):
-        mu, sigma = X[0::2], X[1::2]
-        return sum((mu - row2mat(self.r, mu.size)) / sigma ** 2 * row2mat(self.function(X), mu.size), axis=1)
+        c, a = X[0::2], X[1::2]
+        return sum(c * (- 2 * a * row2mat(self.r, c.size)) * exp(- a * row2mat(self.r, c.size) ** 2), axis=1)
 
-    def sse(self, X, real):
-        return sum((self.function(X) - real) ** 2, axis=0)
+    def sse(self, X):
+        return sum((self.function(X) - self.real) ** 2, axis=0)
 
-    def sse_gradient(self, X, real):
-        mu, sigma = X[0::2], X[1::2]
-        res = row2mat(self.function(X) - real, mu.size)
-        idx = np.indices(mu.shape)[0]
-        mu_grad = insert(sum(2 * res * (row2mat(self.r, mu.size) - mu) / sigma ** 2 * row2mat(self.function(X), mu.size), axis=0), idx + 1, 0)
-        sigma_grad = insert(sum(2 * res * ((row2mat(self.r, mu.size) - mu) / sigma ** 3 - 1 / sigma) * row2mat(self.function(X), mu.size), axis=0), idx, 0)
-        return (mu_grad + sigma_grad) / linalg.norm(mu_grad + sigma_grad)
+    def sse_gradient(self, X):
+        c, a = X[0::2], X[1::2]
+        res = row2mat(self.function(X) - self.real, c.size)
+        idx = np.indices(c.shape)[0]
+        c_grad = insert(sum(2 * res * exp(- a * row2mat(self.r, c.size) ** 2), axis=0), idx + 1, 0)
+        a_grad = insert(sum(2 * res * c * 2 * a * (- row2mat(self.r, c.size)) ** 2 * exp(- a * row2mat(self.r, c.size) ** 2), axis=0), idx, 0)
+        return (c_grad + a_grad) / linalg.norm(c_grad + a_grad)
