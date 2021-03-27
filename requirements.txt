@@ -10,3 +10,4 @@ scikit-learn==0.23.2
 openpyxl==3.0.6  # for loading xlsx files in helperfunctions.load()
 scikit-image==0.17.2  # for generating elliptical potentials
 numdifftools==0.9.39  # for estimating the gradient of the dihedral force field, who would ever do that by hand?
+igor
