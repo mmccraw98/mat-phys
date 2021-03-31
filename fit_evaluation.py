@@ -30,7 +30,9 @@ for i, test_cond in enumerate(test_condition_dirs):
             Js.append([row_data[2], 0])
             Ts.append([0, row_data[3]])
         relaxance_params = np.concatenate(([Ee], np.array(Es).ravel() + np.array(Ts).ravel()))
-        retardance_params = np.concatenate(([np.sum(Js) + 1 / Ee], np.array(Js).ravel() + np.array(Ts).ravel()))
+        # omit retardance for now, it is not calculated in this way
+        # will test the retardance param error as a post-process
+        # retardance_params = np.concatenate(([np.sum(Js) + 1 / Ee], np.array(Js).ravel() + np.array(Ts).ravel()))
 
         # get the experimental data from the files
         f, z, d, t = data_file['F (N)'], data_file['z (m)'], data_file['d (m)'], data_file['time (s)']
@@ -45,13 +47,12 @@ for i, test_cond in enumerate(test_condition_dirs):
     voigt = vf.kelvinVoigtModel(forces=fs, indentations=hs, times=ts, radii=rs)
 
     # perform the fits
-    relaxance_fit = maxwell.fit(maxiter=1000, max_model_size=5, fit_sequential=True, num_attempts=100)['final_params']
-    retardance_fit = voigt.fit(maxiter=1000, max_model_size=5, fit_sequential=True, num_attempts=100)['final_params']
+    relaxance_fit = maxwell.fit(maxiter=5000, max_model_size=5, fit_sequential=True, num_attempts=100)['final_params']
+    retardance_fit = voigt.fit(maxiter=5000, max_model_size=5, fit_sequential=True, num_attempts=100)['final_params']
 
     # compare the relaxance_params and relaxance_fit
     # compare the retardance_params and retardance_fit
     gmp.safesave(relaxance_params, os.path.join(test_cond, 'relaxance_real.pkl'))
-    gmp.safesave(retardance_params, os.path.join(test_cond, 'retardance_real.pkl'))
 
     gmp.safesave(relaxance_fit, os.path.join(test_cond, 'relaxance_fit.pkl'))
     gmp.safesave(retardance_fit, os.path.join(test_cond, 'retardance_fit.pkl'))
