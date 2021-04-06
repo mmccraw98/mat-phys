@@ -436,9 +436,9 @@ class SSE_simultaneous_gen_maxwell():
 
     def function(self, Q_array):
         #force_1, force_2, t_matrix_1, t_matrix_2, t_1, t_2, h_1, h_2, R = self.params
-        #@TODO make this unpack [force, t_matrix, t, h, R] from each arg in the init
+        #@TODO make this unpack [force, t_matrix, t, d, R] from each arg in the init
         #@TODO notes: might need to make a dedicated init for this class
-        #@TODO notes: i.e. SSE_simultaneous_gen_maxwell([force, t_matrix, t, h, R], [force, t_matrix, t, h, R])
+        #@TODO notes: i.e. SSE_simultaneous_gen_maxwell([force, t_matrix, t, d, R], [force, t_matrix, t, d, R])
         #@TODO notes: then simply calculate residuals for each arg in the init and add them
         pass
 

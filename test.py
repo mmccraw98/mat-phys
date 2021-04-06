@@ -1,31 +1,48 @@
+import viscofit as vf
+import general as gmp
 import numpy as np
-import matplotlib.pyplot as plt
-from viscofit import customModel, forceMaxwell_LeeRadok, indentationKelvinVoigt_LeeRadok, maxwellModel, kelvinVoigtModel, powerLawModel, row2mat, forcePowerLaw_LeeRadok
+import os
 
-import igor
+# set the root for the data
+root = os.path.join('data', 'ViscoVerification-MultiLoadLevel-ExcelConvert')
+test_condition_dirs = gmp.get_folders(root)
 
+# loop over all test conditions
+for i, test_cond in enumerate(test_condition_dirs):
+    print('Fitting on test condition data {} of {}'.format(i + 1, len(test_condition_dirs)))
 
-def afm_force_signal(h, R):  # this is a fake force to simulate something that might have been obtained from an AFM
-    return R * 5 * h ** 3
+    test_cond_data = gmp.get_files(test_cond, req_ext='csv')
+    test_cond_settings = gmp.get_files(test_cond, req_ext='txt')
 
-# initially define the experimental observables
-times = np.linspace(0, 0.1, 1000)
-indentation = times ** (3 / 2)
-R = 1
-forces = afm_force_signal(indentation, R)
+    # store the experimental observables for each experiment in the test condition
+    fs, hs, ts, rs = [], [], [], []
 
-# define the custom model and put in the experimental observables
-model = customModel(forces, times, indentation, R)
+    for tc_data, tc_settings in zip(test_cond_data, test_cond_settings):
+        data_file = gmp.load(tc_data)
+        settings_file = gmp.load(tc_settings)
+        Ee = float(settings_file.split(sep='E0: ')[1].split(sep=' ')[0])
 
-# define the function for the desired observable, note: the observables in the function MUST come from the model
-def force_func(params):
-    return model.radii * params[0] * model.indentation ** params[1]
+        # calculate relaxance and retardance parameters
+        Es, Ts, Js = [], [], []
+        for arm_data in settings_file.split(sep='tau (s)')[1].split(sep='\n')[1:-1]:
+            row_data = [float(value) for value in arm_data.split(sep=' ') if value != '']
+            Es.append([row_data[1], 0])
+            Js.append([row_data[2], 0])
+            Ts.append([0, row_data[3]])
+        relaxance_params = np.concatenate(([Ee], np.array(Es).ravel() + np.array(Ts).ravel()))
+        # omit retardance for now, it is not calculated in this way
+        # will test the retardance param error as a post-process
+        # retardance_params = np.concatenate(([np.sum(Js) + 1 / Ee], np.array(Js).ravel() + np.array(Ts).ravel()))
 
-# defining the bounds (n, 2) (two parameters in the force_func here so n=2)
-# [[lower 1, upper 1],
-#  [lower 2, upper 2]]
-param_bounds = [1, 10, 1, 5]
+        # get the experimental data from the files
+        f, z, d, t = data_file['F (N)'], data_file['z (m)'], data_file['d (m)'], data_file['time (s)']
+        mask = np.logical_and(f > 0, np.indices(f.shape) < np.argmax(f))[0]
+        f, z, d, t = f[mask].values, z[mask].values, d[mask].values, t[mask].values
+        h = d - z  # calculating the indentation as the difference between the deflection and the z-sensor
+        R = float(settings_file.split(sep='Radius: ')[1].split(sep=' ')[0])  # load the tip radius
+        fs.append(f), hs.append(h), ts.append(t), rs.append(R)
+    break
 
-# pass the training data (data to be replicated by the function being fit), the function, and the function parameter bounds
-# to the fitting function
-print(model.fit(training_data=forces, function=force_func, bounds=param_bounds))
+norm = vf.maxwellModel(forces=fs, indentations=hs, times=ts, radii=rs)
+
+norm.fit(maxiter=1000, max_model_size=4, fit_sequential=True, num_attempts=100)
