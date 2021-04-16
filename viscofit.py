@@ -495,7 +495,7 @@ class maxwellModel():
             return 1e20 * sse
         return sse
 
-    def fit(self, maxiter=1000, max_model_size=4, fit_sequential=True, num_attempts=5, solver='nelder', save_global=False):
+    def fit(self, maxiter=1000, max_model_size=4, fit_sequential=True, num_attempts=5, solver='nelder', save_global=False, fluidity=False):
         '''
         fit experimental force distance curve(s) to maxwell model of arbitrary size
         :param maxiter: int maximum iterations to perform for each fitting attempt (larger number gives longer run time)
@@ -571,7 +571,9 @@ class maxwellModel():
                 return {'best_fit': best_fit[0], 'time': best_fit[1], 'conf_0.95': best_fit[2], 'cost': best_fit[3]}
 
         non_fluidity_fit = do_fit(solver=solver, fluidity=False, save_global=save_global)
-        fluidity_fit = do_fit(solver=solver, fluidity=True, save_global=save_global)
+        fluidity_fit = None
+        if fluidity:
+            fluidity_fit = do_fit(solver=solver, fluidity=True, save_global=save_global)
         return {'non_fluidity_fit': non_fluidity_fit, 'fluidity_fit': fluidity_fit}
 
 
@@ -701,7 +703,7 @@ class kelvinVoigtModel():
             return 1e20 * sse
         return sse
 
-    def fit(self, maxiter=1000, max_model_size=4, fit_sequential=True, num_attempts=5, solver='nelder', save_global=False):
+    def fit(self, maxiter=1000, max_model_size=4, fit_sequential=True, num_attempts=5, solver='nelder', save_global=False, fluidity=False):
         '''
         fit experimental force distance curve(s) to kelvin-voigt model of arbitrary size
         :param maxiter: int maximum iterations to perform for each fitting attempt (larger number gives longer run time)
@@ -771,7 +773,9 @@ class kelvinVoigtModel():
                 return {'best_fit': best_fit[0], 'time': best_fit[1], 'conf_0.95': best_fit[2], 'cost': best_fit[3]}
 
         non_fluidity_fit = do_fit(solver=solver, fluidity=False, save_global=save_global)
-        fluidity_fit = do_fit(solver=solver, fluidity=True, save_global=save_global)
+        fluidity_fit = None
+        if fluidity:
+            fluidity_fit = do_fit(solver=solver, fluidity=True, save_global=save_global)
         return {'non_fluidity_fit': non_fluidity_fit, 'fluidity_fit': fluidity_fit}
 
 
